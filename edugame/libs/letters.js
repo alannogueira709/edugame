@@ -1,3 +1,4 @@
+// libs/letters.js
 export class Text {
     constructor(textInput) {
         this.text = textInput;

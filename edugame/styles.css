@@ -173,3 +173,17 @@
         filter: drop-shadow(0 0 40px hsla(195, 100%, 75%, 0.9));
       }
     }
+    .ufpe-footer-logo {
+      height: 40px;
+      margin: 0 10px;
+      vertical-align: middle;
+    }
+    .ufrn-footer-logo {
+      height: 80px;
+      margin: 0 10px;
+      vertical-align: middle;
+    }
+    .title-neurobeep {
+      width: 300px;
+      margin-bottom: 1rem;
+    }

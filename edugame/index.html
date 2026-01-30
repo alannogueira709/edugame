@@ -1,30 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/p5.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/addons/p5.sound.min.js"></script>
-    
-   
-    <meta charset="utf-8" />
-
-  </head>
-  <body>
-    <main>
-    </main>
-    <script type="module" src="sketch.js"></script>
-  </body>
-</html>
-
-
-<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NeuroBeep</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/p5.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/addons/p5.sound.min.js"></script>
   <link rel="stylesheet" type="text/css" href="styles.css">
+  <link rel="favicon" type="image/png" href="assets/icon-vector.svg">
+  <link rel="stylesheet" type="text/css" href="game-styles.css">
 </head>
 <body>
   <!-- Canvas p5.js -->
@@ -41,17 +25,12 @@
           </linearGradient>
         </defs>
         <circle cx="100" cy="100" r="95" fill="none" stroke="url(#logoGradient)" stroke-width="2" opacity="0.5"/>
-        <path d="M 50 100 Q 75 60, 100 80 T 150 100" fill="none" stroke="url(#logoGradient)" stroke-width="3" stroke-linecap="round"/>
-        <path d="M 50 130 Q 75 170, 100 150 T 150 130" fill="none" stroke="url(#logoGradient)" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
-        <circle cx="100" cy="100" r="6" fill="url(#logoGradient)"/>
-        <circle cx="75" cy="100" r="4" fill="url(#logoGradient)" opacity="0.6"/>
-        <circle cx="125" cy="100" r="4" fill="url(#logoGradient)" opacity="0.6"/>
+        <image href="assets/icon-vector.svg" x="20" y="20" width="160" height="160" />
       </svg>
     </div>
 
-    <h1>Neuro<span class="highlight">Beep</span></h1>
+    <img src="/edugame/assets/title-neurobeep.png" alt="neurobeep title" class="title-neurobeep">
 
-    <!-- Botões -->
     <div class="buttons-container">
       <button class="btn-play">
         <span>▶</span>
@@ -63,10 +42,11 @@
       </button>
     </div>
     <div class="footer">
-      Feito com p5.js • JavaScript ES6
+      <img src="/edugame/assets/ufrn.png" alt="UFRN Logo" class="ufrn-footer-logo">
+      <img src="/edugame/assets/ufpe.png" alt="UFPE Logo" class="ufpe-footer-logo">
     </div>
   </div>
 
-  
+  <script type="module" src="sketch.js"></script>
 </body>
 </html>

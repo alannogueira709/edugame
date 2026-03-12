@@ -1,18 +1,32 @@
-/**
- * sketch.js - Arquivo principal do jogo
- * SOLUÇÃO: Adiciona event listeners via JavaScript ao invés de usar onclick no HTML
- */
+// sketch.js — trecho atualizado
 
-import { GameManager } from './GameManager.js';
-import { LandingPage } from './LandingPage.js';
+import { GameManager }     from './GameManager.js';
+import { LandingPage }     from './LandingPage.js';
 import { Phase1, Phase2, Phase3 } from './Phases.js';
 
-// Variável global do gerenciador de jogo
 let gameManager;
 
-/**
- * Aguarda o DOM estar pronto e configura os botões
- */
+window.setup = function () {
+    createCanvas(windowWidth, windowHeight).parent('p5-container');
+
+    gameManager = new GameManager();
+
+    // Cenas de fluxo
+    gameManager.addScene('landing',     new LandingPage());
+
+    // Fases de jogo
+    gameManager.addScene('phase1', new Phase1());
+    gameManager.addScene('phase2', new Phase2());
+    gameManager.addScene('phase3', new Phase3());
+
+    // Conecta o botão da landing page
+    const landing = gameManager.scenes.get('landing');
+    if (landing) landing.onPlayClicked = () => gameManager.startGame();
+
+    gameManager.init(); // sempre inicia na landing
+    window.gameManager = gameManager;
+};
+
 document.addEventListener('DOMContentLoaded', function() {
   console.log('DOM carregado, aguardando p5.js...');
   
@@ -38,38 +52,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const infoButton = document.querySelector('.btn-info');
   if (infoButton) {
     infoButton.addEventListener('click', function() {
-      alert('Instruções do jogo:\n\n- Digite as palavras que aparecem na tela\n- Você tem 3 vidas\n- Cada fase tem um desafio diferente\n- Pressione ESC para pausar');
+      alert('Instruções do jogo:\n\n- Digite as palavras que aparecem na tela\n- Você tem 3 vidas\n- Cada fase tem um desafio diferente\n- Pressione B para conectar o ESP32 via Bluetooth\n- Pressione X para desconectar o Bluetooth\n- Pressione ESC para pausar');
     });
   }
 });
 
-/**
- * Setup do p5.js - Inicialização
- */
-window.setup = function() {
-  console.log('p5.js setup iniciado');
-  
-  // Cria canvas
-  const canvas = createCanvas(windowWidth, windowHeight);
-  canvas.parent('p5-container');
-
-  // Inicializa o gerenciador de jogo
-  gameManager = new GameManager();
-
-  // Cria e registra todas as cenas
-  setupScenes();
-
-  // Conecta o botão play da landing page com o game manager
-  connectLandingPageButton();
-
-  // Inicia na landing page
-  gameManager.init('landing');
-
-  // Expõe o gameManager globalmente
-  window.gameManager = gameManager;
-
-  console.log('✅ p5.js setup completo - Jogo pronto!');
-};
 
 /**
  * Configura todas as cenas do jogo

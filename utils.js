@@ -98,43 +98,47 @@ export function generateDistributedPositions(count, canvasWidth, canvasHeight) {
  * @param {Number} canvasHeight - Altura do canvas
  * @returns {Object} - { letters: [{char, x, y, size}], spacing, lineY, totalWidth }
  */
-export function generateLinearWordLayout(word, canvasWidth, canvasHeight) {
+/**
+ * @param {Object} [opts]
+ * @param {number} [opts.spriteZoneX]      - Limite X direito disponível (exclui área do sprite)
+ * @param {Object} [opts.layoutContraints] - { topY, botY } — faixa vertical da zona de jogo
+ */
+export function generateLinearWordLayout(word, canvasWidth, canvasHeight, opts = {}) {
     const letters = String(word ?? '').trim().split('');
     if (!letters.length) {
         return { letters: [], spacing: 0, lineY: canvasHeight / 2, totalWidth: 0 };
     }
 
-    const safeWidth = Math.max(canvasWidth, 320);
+    const safeWidth  = Math.max(canvasWidth,  320);
     const safeHeight = Math.max(canvasHeight, 240);
-    const marginX = Math.max(24, safeWidth * 0.08);
+
+    // Limite X direito: respeita a zona do sprite se informada
+    const maxAvailableX = (opts.spriteZoneX != null && opts.spriteZoneX > 80)
+        ? opts.spriteZoneX
+        : safeWidth;
+
+    const marginX       = Math.max(24, safeWidth * 0.06);
     const minLetterSize = Math.max(26, safeHeight * 0.05);
     const maxLetterSize = Math.min(86, safeHeight * 0.14);
 
-    const sizeByWord = safeWidth / (letters.length * 1.7);
+    const availableW = maxAvailableX - marginX * 2;
+    const sizeByWord = availableW / (letters.length * 1.7);
     const letterSize = Math.floor(Math.min(maxLetterSize, Math.max(minLetterSize, sizeByWord)));
 
-    const minSpacing = Math.max(8, letterSize * 0.16);
-    const maxSpacing = Math.max(minSpacing + 4, letterSize * 0.42);
-    const spacing = minSpacing + Math.random() * (maxSpacing - minSpacing);
-
-    const totalWidth = letters.length * letterSize + (letters.length - 1) * spacing;
-    const availableWidth = safeWidth - (marginX * 2);
-    const fitScale = totalWidth > availableWidth ? (availableWidth / totalWidth) : 1;
+    const spacing       = Math.max(8, letterSize * 0.22);
+    const totalWidth    = letters.length * letterSize + (letters.length - 1) * spacing;
+    const fitScale      = totalWidth > availableW ? (availableW / totalWidth) : 1;
     const finalLetterSize = letterSize * fitScale;
-    const finalSpacing = spacing * fitScale;
+    const finalSpacing    = spacing   * fitScale;
     const finalTotalWidth = letters.length * finalLetterSize + (letters.length - 1) * finalSpacing;
 
-    const minStartX = marginX;
-    const maxStartX = safeWidth - marginX - finalTotalWidth;
-    const startX = maxStartX > minStartX
-        ? minStartX + Math.random() * (maxStartX - minStartX)
-        : minStartX;
+    // X: centralizado horizontalmente na área disponível (sem aleatoriedade)
+    const startX = marginX + Math.max(0, (availableW - finalTotalWidth) / 2);
 
-    const yTopMargin = Math.max(120, safeHeight * 0.2);
-    const yBottomMargin = Math.max(180, safeHeight * 0.28);
-    const minY = yTopMargin;
-    const maxY = Math.max(minY, safeHeight - yBottomMargin);
-    const lineY = minY + Math.random() * Math.max(1, (maxY - minY));
+    // Y: FIXO no centro da zona de jogo (sem aleatoriedade no eixo Y)
+    const topY  = opts.layoutContraints?.topY  ?? Math.max(120, safeHeight * 0.22);
+    const botY  = opts.layoutContraints?.botY  ?? Math.max(topY + 40, safeHeight - Math.max(180, safeHeight * 0.30));
+    const lineY = topY + (botY - topY) / 2 - finalLetterSize / 2;
 
     const positionedLetters = letters.map((char, index) => ({
         char,

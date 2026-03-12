@@ -27,19 +27,18 @@ const DEFAULT_BT_CONFIG = {
     deviceNamePrefix: 'ESP32',
 };
 
-const ROBOT_VIDEO_SOURCES = {
-    idling: [
-        'assets/sprites/robot_idlings-prite.mp4',
-    ],
-    talking: [
-        'assets/sprites/robot-talking_sprite.mp4',
-    ],
-    right: [
-        'assets/sprites/robot-right_answer.mp4',
-    ],
-    wrong: [
-        'assets/sprites/robot-wrong_answer.mp4',
-    ],
+const ROBOT_SPRITE_SOURCES = {
+    idling: 'assets/sprites/sprite_sheet_idle.png',
+    talking: 'assets/sprites/sprite_sheet_talking.png',
+    right: 'assets/sprites/sprite_sheet_right.png',
+    wrong: 'assets/sprites/sprite_sheet_wrong.png',
+};
+
+const ROBOT_SPRITE_CONFIG = {
+    fps: 15,
+    columns: 5,
+    rows: 20,
+    transitionMs: 180,
 };
 
 // ============================================================
@@ -191,10 +190,12 @@ export class GamePhase extends Scene {
         this.feedbackColor   = [255, 255, 255];
         this.showTimerBadge  = false;
 
-        // Avatar em video (sequencias por situacao)
-        this.robotVideos = {};
-        this.currentRobotVideo = null;
-        this.currentRobotVideoKey = null;
+        // Avatar em sprite sheet (sequencias por situacao)
+        this.robotSprites = {};
+        this.currentRobotAnimation = null;
+        this.currentRobotAnimationKey = null;
+        this.previousRobotAnimation = null;
+        this.robotTransition = null;
         this.robotSequenceNonce = 0;
     }
 
@@ -205,7 +206,7 @@ export class GamePhase extends Scene {
         this._criarGameUI();
         this._criarPainelPalavra();
         this._instalarControlesGlobais();
-        this._setupRobotVideos();
+        this._setupRobotSprites();
         this.initializePhase();
     }
 
@@ -510,7 +511,7 @@ export class GamePhase extends Scene {
         this._drawPalavraAtual();
         this._drawZonas();
         this._drawPlayer();
-        this._drawRobotVideo();
+        this._drawRobotSprite();
         this._drawResultPanel();
         this._drawHUD();
         this._atualizarMovimento();
@@ -575,21 +576,53 @@ export class GamePhase extends Scene {
         }
     }
 
-    _drawRobotVideo() {
-        if (!this.currentRobotVideo?.elt) return;
-        const el = this.currentRobotVideo.elt;
-        if (el.readyState < 2) return;
+    _drawRobotSprite() {
+        if (!this.currentRobotAnimation?.image) return;
+
+        this._updateRobotAnimation();
 
         const w = Math.min(360, width * 0.26);
         const h = w * 0.72;
         const x = width - w - 24;
         const y = height - h - 150;
+        const frame = this._getRobotCurrentFrame();
+        if (!frame) return;
+        const transitionAlpha = this._getRobotTransitionAlpha();
 
         push();
-        fill(0, 0, 0, 100);
+        fill(8, 20, 28, 42);
         noStroke();
         rect(x - 8, y - 8, w + 16, h + 16, 12);
-        image(this.currentRobotVideo, x, y, w, h);
+        if (this.previousRobotAnimation?.image && transitionAlpha < 1) {
+            const previousFrame = this._getRobotFrame(this.previousRobotAnimation);
+            if (previousFrame) {
+                tint(255, (1 - transitionAlpha) * 255);
+                image(
+                    this.previousRobotAnimation.image,
+                    x,
+                    y,
+                    w,
+                    h,
+                    previousFrame.sx,
+                    previousFrame.sy,
+                    previousFrame.sw,
+                    previousFrame.sh
+                );
+            }
+        }
+        tint(255, transitionAlpha * 255);
+        image(
+            this.currentRobotAnimation.image,
+            x,
+            y,
+            w,
+            h,
+            frame.sx,
+            frame.sy,
+            frame.sw,
+            frame.sh
+        );
+        noTint();
         pop();
     }
 
@@ -835,51 +868,132 @@ export class GamePhase extends Scene {
         this._playRobotSequenceByTipo(tipo);
     }
 
-    _setupRobotVideos() {
-        const makeVideo = (sources) => {
-            const video = createVideo(sources);
-            video.hide();
-            video.volume(0);
-            video.elt.muted = true;
-            video.elt.loop = false;
-            video.elt.playsInline = true;
-            video.elt.setAttribute('playsinline', 'true');
-            video.elt.preload = 'auto';
-            this.elements.push(video);
-            return video;
-        };
+    _setupRobotSprites() {
+        this.robotSprites = {};
 
-        this.robotVideos = {
-            idling: makeVideo(ROBOT_VIDEO_SOURCES.idling),
-            talking: makeVideo(ROBOT_VIDEO_SOURCES.talking),
-            right: makeVideo(ROBOT_VIDEO_SOURCES.right),
-            wrong: makeVideo(ROBOT_VIDEO_SOURCES.wrong),
-        };
+        for (const [key, src] of Object.entries(ROBOT_SPRITE_SOURCES)) {
+            loadImage(
+                src,
+                (img) => {
+                    this.robotSprites[key] = this._createRobotAnimationState(key, img);
+                    if (!this.currentRobotAnimation && key === 'idling') {
+                        this._playRobotAnimation('idling');
+                    }
+                },
+                () => {
+                    console.warn(`[Robot] Falha ao carregar sprite sheet: ${src}`);
+                }
+            );
+        }
 
-        this.currentRobotVideoKey = 'idling';
-        this.currentRobotVideo = this.robotVideos.idling;
-        this._playRobotVideo('idling');
+        this.currentRobotAnimationKey = 'idling';
+        this.currentRobotAnimation = null;
     }
 
-    _playRobotVideo(key, onEnded) {
-        const video = this.robotVideos[key];
-        if (!video?.elt) return;
+    _createRobotAnimationState(key, img) {
+        const frameWidth = Math.floor(img.width / ROBOT_SPRITE_CONFIG.columns);
+        const frameHeight = Math.floor(img.height / ROBOT_SPRITE_CONFIG.rows);
+        const frames = [];
 
-        for (const other of Object.values(this.robotVideos)) {
-            if (other?.elt) {
-                other.elt.onended = null;
-                other.elt.pause();
+        for (let row = 0; row < ROBOT_SPRITE_CONFIG.rows; row += 1) {
+            for (let col = 0; col < ROBOT_SPRITE_CONFIG.columns; col += 1) {
+                frames.push({
+                    sx: col * frameWidth,
+                    sy: row * frameHeight,
+                    sw: frameWidth,
+                    sh: frameHeight,
+                });
             }
         }
 
-        this.currentRobotVideoKey = key;
-        this.currentRobotVideo = video;
-        video.elt.currentTime = 0;
-        video.play();
-        video.elt.onended = () => {
-            video.elt.onended = null;
-            if (typeof onEnded === 'function') onEnded();
+        return {
+            key,
+            image: img,
+            frames,
+            frameIndex: 0,
+            lastFrameAt: 0,
+            frameDurationMs: 1000 / ROBOT_SPRITE_CONFIG.fps,
+            loop: false,
+            isPlaying: false,
+            onEnded: null,
         };
+    }
+
+    _playRobotAnimation(key, onEnded) {
+        const animation = this.robotSprites[key];
+        if (!animation?.frames?.length) return false;
+
+        const previousAnimation = this.currentRobotAnimation && this.currentRobotAnimation !== animation
+            ? { ...this.currentRobotAnimation }
+            : null;
+
+        for (const other of Object.values(this.robotSprites)) {
+            other.isPlaying = false;
+            other.onEnded = null;
+        }
+
+        animation.frameIndex = 0;
+        animation.lastFrameAt = millis();
+        animation.isPlaying = true;
+        animation.onEnded = onEnded ?? null;
+        animation.loop = typeof onEnded !== 'function' && key === 'idling';
+        this.currentRobotAnimationKey = key;
+        this.currentRobotAnimation = animation;
+        this.previousRobotAnimation = previousAnimation;
+        this.robotTransition = previousAnimation ? { startedAt: millis() } : null;
+        return true;
+    }
+
+    _updateRobotAnimation() {
+        const animation = this.currentRobotAnimation;
+        if (!animation?.isPlaying) return;
+
+        const now = millis();
+        if (now - animation.lastFrameAt < animation.frameDurationMs) return;
+
+        const elapsedFrames = Math.max(1, Math.floor((now - animation.lastFrameAt) / animation.frameDurationMs));
+        animation.lastFrameAt = now;
+
+        for (let i = 0; i < elapsedFrames; i += 1) {
+            if (animation.frameIndex < animation.frames.length - 1) {
+                animation.frameIndex += 1;
+                continue;
+            }
+
+            if (animation.loop) {
+                animation.frameIndex = 0;
+                continue;
+            }
+
+            animation.isPlaying = false;
+            const ended = animation.onEnded;
+            animation.onEnded = null;
+            if (typeof ended === 'function') ended();
+            break;
+        }
+    }
+
+    _getRobotCurrentFrame() {
+        const animation = this.currentRobotAnimation;
+        if (!animation?.frames?.length) return null;
+        return animation.frames[animation.frameIndex] ?? animation.frames[0];
+    }
+
+    _getRobotFrame(animation) {
+        if (!animation?.frames?.length) return null;
+        return animation.frames[animation.frameIndex] ?? animation.frames[0];
+    }
+
+    _getRobotTransitionAlpha() {
+        if (!this.robotTransition) return 1;
+        const elapsed = millis() - this.robotTransition.startedAt;
+        const alpha = constrain(elapsed / ROBOT_SPRITE_CONFIG.transitionMs, 0, 1);
+        if (alpha >= 1) {
+            this.robotTransition = null;
+            this.previousRobotAnimation = null;
+            return 1;
+        }
+        return alpha;
     }
 
     _playRobotSequence(sequence) {
@@ -893,39 +1007,41 @@ export class GamePhase extends Scene {
             const key = sequence[index];
             if (!key) return;
             index += 1;
-            this._playRobotVideo(key, () => {
-                if (index < sequence.length) next();
+            const started = this._playRobotAnimation(key, () => {
+                if (index < sequence.length) {
+                    next();
+                    return;
+                }
+                this._playRobotAnimation('idling');
             });
+            if (!started) {
+                if (index < sequence.length) {
+                    next();
+                    return;
+                }
+                this._playRobotAnimation('idling');
+            }
         };
 
         next();
     }
 
     _playRobotSequenceByTipo(tipo) {
-        const sequenceByTipo = {
-            // Acerto consolidado
-            reforcao_positivo: ['idling', 'talking', 'right'],
-            // Acerto casual
-            explicacao_conteudo: ['idling', 'talking', 'right', 'talking'],
-            // Sem movimento / dica
-            incentivo: ['idling', 'talking'],
-            engajamento: ['idling', 'talking'],
-            // Nao parou / bateu / zona neutra
-            alerta_execucao: ['idling', 'talking'],
-            orientacao_espacial: ['idling', 'talking'],
-            // Erro em resposta
-            scaffolding: ['idling', 'talking', 'wrong', 'talking'],
-            // Segunda tentativa: acerto assistido
-            reforcao_persistencia: ['idling', 'talking', 'right'],
-            // Erro cognitivo novamente
-            erro_cognitivo_reincidente: ['talking', 'wrong'],
-            // Fallback de resolucao final
-            resolucao: ['idling', 'talking', 'wrong'],
-            // Pergunta de compreensao
-            compreensao: ['idling', 'talking'],
+        const animationByTipo = {
+            reforcao_positivo: 'right',
+            explicacao_conteudo: 'talking',
+            incentivo: 'talking',
+            engajamento: 'talking',
+            alerta_execucao: 'talking',
+            orientacao_espacial: 'talking',
+            scaffolding: 'wrong',
+            reforcao_persistencia: 'right',
+            erro_cognitivo_reincidente: 'wrong',
+            resolucao: 'wrong',
+            compreensao: 'talking',
         };
-        const seq = sequenceByTipo[tipo] ?? ['idling', 'talking'];
-        this._playRobotSequence(seq);
+        const animationKey = animationByTipo[tipo] ?? 'talking';
+        this._playRobotSequence([animationKey]);
     }
 
     _corFeedbackPorTipo(tipo) {
@@ -1192,15 +1308,15 @@ export class GamePhase extends Scene {
         }
         this.disconnectBluetoothInput();
         this.robotSequenceNonce += 1;
-        for (const video of Object.values(this.robotVideos)) {
-            if (video?.elt) {
-                video.elt.onended = null;
-                video.elt.pause();
-            }
+        for (const animation of Object.values(this.robotSprites)) {
+            animation.isPlaying = false;
+            animation.onEnded = null;
         }
-        this.robotVideos = {};
-        this.currentRobotVideo = null;
-        this.currentRobotVideoKey = null;
+        this.robotSprites = {};
+        this.currentRobotAnimation = null;
+        this.currentRobotAnimationKey = null;
+        this.previousRobotAnimation = null;
+        this.robotTransition = null;
         if (this.gameUI?.parentNode) this.gameUI.parentNode.removeChild(this.gameUI);
         this.sprites = []; this.zonas = []; this.logsSession = [];
     }

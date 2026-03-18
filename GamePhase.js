@@ -53,9 +53,9 @@ LAYOUT.SPRITE_GAP     = 16;
 
 const ROBOT_SPRITE_SOURCES = {
     idling: 'assets/sprites/sprite_sheet_idle.png',
-    talking: ['assets/sprites/sprite_sheet_talking.png', 'assets/sprites/sprite_sheet_idle.png'],
-    right:  ['assets/sprites/sprite_sheet_right.png', 'assets/sprites/sprite_sheet_idle.png'],
-    wrong:  ['assets/sprites/sprite_sheet_wrong.png', 'assets/sprites/sprite_sheet_idle.png'],
+    talking: 'assets/sprites/sprite_sheet_talking.png', 
+    right:  'assets/sprites/sprite_sheet_right.png',
+    wrong:  'assets/sprites/sprite_sheet_wrong.png',
 };
 
 const ROBOT_SPRITE_CONFIG = {
@@ -64,6 +64,39 @@ const ROBOT_SPRITE_CONFIG = {
     rows: 20,
     transitionMs: 180,
 };
+
+// ============================================================
+//  HELPER: Ponte de comunicação com o Dashboard React via Tauri
+// ============================================================
+
+// CORREÇÃO 1, 2 e 3: Substituído BroadcastChannel por window.__TAURI__.event.emit().
+//
+// O BroadcastChannel só funciona entre páginas da mesma origin no mesmo processo.
+// No Tauri v2, cada WebviewWindow tem seu próprio contexto JS isolado, então o canal
+// não conseguia atravessar da janela do projetor para a janela principal do dashboard.
+//
+// A API de eventos do Tauri (emit/listen) foi projetada exatamente para comunicação
+// entre WebviewWindows diferentes — ela passa pelo backend Rust e entrega o evento
+// para todos os listeners registrados em qualquer janela do app.
+//
+// Uso: tauriEmit('neurobeep_sync', { source: 'GAME', type: '...', payload: {...} })
+// No React: listen('neurobeep_sync', handler) em Game.tsx
+
+async function tauriEmit(eventName, payload) {
+    try {
+        // window.__TAURI__ é injetado pelo Tauri automaticamente em todas as webviews.
+        // Verificamos sua existência para evitar erros caso o game rode fora do Tauri
+        // (ex: no browser durante desenvolvimento).
+        if (window.__TAURI__?.event?.emit) {
+            await window.__TAURI__.event.emit(eventName, payload);
+        } else {
+            // Fallback para desenvolvimento fora do Tauri (ex: browser direto)
+            console.debug('[tauriEmit] __TAURI__ não disponível. Payload:', eventName, payload);
+        }
+    } catch (error) {
+        console.warn('[tauriEmit] Falha ao emitir evento:', error);
+    }
+}
 
 // ============================================================
 //  QuestionLog — "Bilhete de Identidade" de cada questão
@@ -271,7 +304,7 @@ export class GamePhase extends Scene {
             pendingResolution: false,
         };
 
-        // Palavra aleatoria (atividade pedagogica)
+        // Palavra aleatória (atividade pedagógica)
         this.currentWord = '';
         this.wordLayout = { letters: [], spacing: 0, lineY: 0, totalWidth: 0 };
         this.resultPanel = {
@@ -286,7 +319,7 @@ export class GamePhase extends Scene {
         this._resultPanelTimerId = null;
         this._globalKeydownHandler = null;
 
-        // Entrada Bluetooth (ESP32 -> x/y do robo)
+        // Entrada Bluetooth (ESP32 -> x/y do robô)
         this.bluetoothConfig = { ...DEFAULT_BT_CONFIG, ...(window?.NEUROBEEP_BT_CONFIG ?? {}) };
         this.bluetoothInput = {
             isConnecting: false,
@@ -314,6 +347,11 @@ export class GamePhase extends Scene {
         this.previousRobotAnimation = null;
         this.robotTransition = null;
         this.robotSequenceNonce = 0;
+
+        // CORREÇÃO: Removida a instância de BroadcastChannel do constructor.
+        // A comunicação agora é feita via tauriEmit() (função no topo deste arquivo),
+        // que usa window.__TAURI__.event.emit() — funciona entre WebviewWindows separadas.
+        // Não é necessário nenhum objeto de canal aqui.
     }
 
     // ── Setup ────────────────────────────────────────────────
@@ -324,6 +362,28 @@ export class GamePhase extends Scene {
         this._instalarControlesGlobais();
         this._setupRobotSprites();
         this.initializePhase();
+
+        // Captura de frames para miniatura: integrada no draw() via _enviarFrameMiniatura()
+    }
+
+    // Envia um frame da miniatura para o dashboard a cada N frames do draw().
+    // Integrado no draw() para garantir que só roda quando o game está de fato ativo
+    // e o canvas do p5.js já foi pintado naquele ciclo.
+    // Throttle: envia 1 frame a cada 4 frames do draw() ≈ 15fps (assumindo 60fps).
+    _enviarFrameMiniatura() {
+        if (!this._frameCounter) this._frameCounter = 0;
+        this._frameCounter += 1;
+        if (this._frameCounter % 4 !== 0) return; // throttle ~15fps
+
+        try {
+            // drawingContext é o canvas 2D do p5.js — acessamos o elemento nativo via canvas
+            const canvas = drawingContext?.canvas ?? document.querySelector('canvas');
+            if (!canvas) return;
+            const frame = canvas.toDataURL('image/jpeg', 0.5);
+            tauriEmit('neurobeep_frame', { frame });
+        } catch (_) {
+            // Silencioso: canvas pode estar temporariamente indisponível
+        }
     }
 
     _criarGameUI() {
@@ -648,6 +708,17 @@ export class GamePhase extends Scene {
 
         this._mudarEstado(PHASE_STATE.APRESENTACAO);
         this._emitirEstimulo();
+
+        // CORREÇÃO: Usa tauriEmit() no lugar de syncChannel.postMessage()
+        tauriEmit('neurobeep_sync', {
+            source: 'GAME',
+            type: 'SYNC_QUESTION',
+            payload: {
+                tituloQuestao: this.questaoAtual.enunciado,
+                opcoes: this.questaoAtual.alternativas || [],
+                questionIndex: this.questaoAtualIndex + 1,
+            },
+        });
     }
 
     // ── Máquina de estados ────────────────────────────────────
@@ -655,6 +726,16 @@ export class GamePhase extends Scene {
     _mudarEstado(novoEstado) {
         console.log(`[Estado] ${this.state} → ${novoEstado}`);
         this.state = novoEstado;
+
+        // CORREÇÃO: Usa tauriEmit() no lugar de syncChannel.postMessage()
+        tauriEmit('neurobeep_sync', {
+            source: 'GAME',
+            type: 'SYNC_STATE',
+            payload: {
+                sessionState: novoEstado.toUpperCase(),
+                activeTimer: this.timerIncentivo,
+            },
+        });
     }
 
     // 7.1 — Estímulo
@@ -836,10 +917,18 @@ export class GamePhase extends Scene {
         setTimeout(() => this._avancarQuestao(), VICTORY_DISPLAY_MS);
     }
 
-    _encerrarFase() {
-        const payload = this._gerarPayloadFinal();
-        this.onPhaseComplete(payload);
+_encerrarFase() {
+    const payload = this._gerarPayloadFinal();
+
+    // Dispara a exportação do JSON completo da sessão
+    if (window.__TAURI__?.core?.invoke) {
+        window.__TAURI__.core.invoke('exportar_sessao')
+            .then((caminho) => console.log('[GamePhase] JSON salvo em:', caminho))
+            .catch((err) => console.error('[GamePhase] Erro ao exportar sessão:', err));
     }
+
+    this.onPhaseComplete(payload);
+}
 
     // ── Loop de desenho ──────────────────────────────────────
 
@@ -853,6 +942,30 @@ export class GamePhase extends Scene {
         this._verificarColisoes();
         this._atualizarUI();
         this.checkGameState();
+
+        // Sincroniza posição do robô com dashboard (a cada 2 frames)
+        if (frameCount % 2 === 0) {
+            tauriEmit('neurobeep_sync', {
+                source: 'GAME',
+                type: 'SYNC_POSITION',
+                payload: {
+                    x: this.player.x,
+                    normalizedX: this.player.x / width,
+                    robotPosition: this._determinarZonaAtual(),
+                },
+            });
+        }
+
+        // Envia frame da miniatura para o dashboard (a cada 4 frames ≈ 15fps)
+        this._enviarFrameMiniatura();
+    }
+
+    _determinarZonaAtual() {
+        if (this.state === PHASE_STATE.COMPREENSAO) return 'COMPREENSAO';
+        if (this.player.x < width * 0.3) return 'ZONA_B';
+        if (this.player.x > width * 0.7) return 'ZONA_C';
+        if (this.player.y < height * 0.3) return 'ZONA_A';
+        return 'START';
     }
 
     _drawCenario() { /* @override */ }
@@ -935,7 +1048,6 @@ export class GamePhase extends Scene {
             bx + bubbleW * 0.35 + 7, by + bubbleH + 12
         );
 
-        // Texto — cor escura para legibilidade sobre fundo branco
         fill(30, 30, 30);
         textAlign(CENTER, CENTER);
         textSize(13);
@@ -1116,26 +1228,27 @@ export class GamePhase extends Scene {
     }
 
     _resetarWatchdogs() { this._limparTimers(); this.showTimerBadge = false; this.timerIncentivo = 0; }
+
     _limparTimers() {
-        if (this._inertiaTimerId) { clearTimeout(this._inertiaTimerId);  this._inertiaTimerId = null; }
-        if (this._timeoutTimerId) { clearTimeout(this._timeoutTimerId);  this._timeoutTimerId = null; }
-        if (this._timerInterval)  { clearInterval(this._timerInterval);  this._timerInterval  = null; }
+        if (this._inertiaTimerId) { clearTimeout(this._inertiaTimerId); this._inertiaTimerId = null; }
+        if (this._timeoutTimerId) { clearTimeout(this._timeoutTimerId); this._timeoutTimerId = null; }
+        if (this._timerInterval) { clearInterval(this._timerInterval); this._timerInterval = null; }
     }
 
-    _salvarLogEEnviarParaRust() {
-        if (!this.logAtual) return;
-        if (this.logAtual._payloadEnviado) return;
-        const payload = this.logAtual.toPayload();
-        this.logsSession.push(payload);
-        this.logAtual._payloadEnviado = true;
-        if (window.parent) {
-            window.parent.postMessage({
-                type: 'NEUROBEEP_JOGADA_CONCLUIDA',
-                data: payload,
-            }, '*');
-            console.log('[GamePhase] Payload da jogada enviado ao React/Rust!', payload);
-        }
+_salvarLogEEnviarParaRust() {
+    if (!this.logAtual || this.logAtual._payloadEnviado) return;
+
+    const payload = this.logAtual.toPayload();
+    this.logsSession.push(payload);
+    this.logAtual._payloadEnviado = true;
+
+    // Envia para o Rust via invoke (substitui o postMessage que não chegava)
+    if (window.__TAURI__?.core?.invoke) {
+        window.__TAURI__.core.invoke('registrar_jogada', { payload })
+            .then((msg) => console.log('[GamePhase] Rust confirmou:', msg))
+            .catch((err) => console.error('[GamePhase] Erro ao registrar jogada:', err));
     }
+}
 
     // ── Payload final (§Bloco 4) ─────────────────────────────
 
@@ -1906,6 +2019,8 @@ export class GamePhase extends Scene {
         this.robotTransition = null;
         if (this.gameUI?.parentNode) this.gameUI.parentNode.removeChild(this.gameUI);
         this.sprites = []; this.zonas = []; this.logsSession = [];
+        // Para o loop de captura de frames da miniatura
+        this._frameLoopAtivo = false;
     }
 
     // ── Atalhos de constantes ────────────────────────────────

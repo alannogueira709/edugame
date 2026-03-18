@@ -160,7 +160,6 @@ export class GameManager {
             console.error('[GameManager] Baseline ok mas sem roteiro definido.');
             return;
         }
-
         console.log('[GameManager] Baseline validado → iniciando fase');
         this._iniciarFaseComRoteiro(roteiro);
     }
@@ -263,7 +262,6 @@ export class GameManager {
             });
             return;
         }
-
         this.switchTo('roteiro', {
             onRoteiroChosen: (roteiro) => this._onRoteiroChosen(roteiro),
         });

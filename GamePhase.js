@@ -41,6 +41,16 @@ const LAYOUT = {
     SPRITE_GAP:      16,   // margem entre zona de jogo e zona do sprite
 };
 
+// Compact layout — HTML handles enunciado/palavra/zonas
+LAYOUT.HUD_H          = 76;   // HUD pills are now shorter
+LAYOUT.ENUNCIADO_H    = 0;    // moved to HTML
+LAYOUT.PALAVRA_BADGE_H = 0;   // moved to HTML
+LAYOUT.ZONAS_H        = 0;    // moved to HTML
+LAYOUT.RODAPE_H       = 52;   // slim status bar
+LAYOUT.SPRITE_W_MAX   = 180;
+LAYOUT.SPRITE_W_FRAC  = 0.14;
+LAYOUT.SPRITE_GAP     = 16;
+
 const ROBOT_SPRITE_SOURCES = {
     idling: 'assets/sprites/sprite_sheet_idle.png',
     talking: ['assets/sprites/sprite_sheet_talking.png', 'assets/sprites/sprite_sheet_idle.png'],
@@ -323,24 +333,249 @@ export class GamePhase extends Scene {
         this.gameUI = document.createElement('div');
         this.gameUI.className = 'game-ui';
         this.gameUI.innerHTML = `
-            <div class="game-header">
-                <div class="score">Pontuação: <span id="score-value">0</span></div>
-                <div class="phase">Fase: <span id="phase-value">${this.phaseNumber}</span></div>
-                <div class="lives">Vidas: <span id="lives-value">${this.lives}</span></div>
+            <!-- ── TOP HUD ── -->
+            <div class="game-top-shell">
+                <div class="game-header">
+                    <div class="hud-pill hud-pill-score">
+                        <span class="hud-icon" aria-hidden="true">&#9733;</span>
+                        <span class="hud-value" id="score-value">0 pts</span>
+                    </div>
+                    <div class="hud-pill hud-pill-phase">
+                        <span class="hud-value" id="phase-value">Fase ${this.phaseNumber}</span>
+                    </div>
+                    <div class="hud-pill hud-pill-lives">
+                        <div class="lives-track" id="lives-track">${this._renderLivesTrack()}</div>
+                    </div>
+                </div>
+                <div class="timer-shell" id="timer-shell">
+                    <span class="timer-label">Tempo</span>
+                    <div class="timer-bar-track">
+                        <div class="timer-bar-fill" id="timer-bar-fill"></div>
+                    </div>
+                    <span class="timer-value" id="timer-value">60s</span>
+                </div>
             </div>
-            <div id="timer-bar-track" style="
-                display:none;height:5px;
-                background:rgba(120,10,10,0.30);
-                position:relative;overflow:hidden;">
-              <div id="timer-bar-fill" style="
-                height:100%;width:100%;
-                background:linear-gradient(90deg,#dc2626,#ef4444);
-                transition:width 0.95s linear;"></div>
+
+            <!-- ── CHALLENGE CARD (enunciado + palavra + tiles) ── -->
+            <div class="game-challenge-card" id="challenge-card">
+                <span class="game-kicker">DESAFIO</span>
+                <p class="game-enunciado" id="enunciado-text"></p>
+                <div class="game-word-tiles" id="word-tiles"></div>
+            </div>
+
+            <!-- ── ALTERNATIVAS (zonas HTML) ── -->
+            <div class="game-zonas-html" id="zonas-html"></div>
+
+            <!-- ── STATUS BAR ── -->
+            <div class="game-statusbar">
+                <span class="status-copy" id="status-message">ESPACO move/para &nbsp;|&nbsp; ← → direção</span>
+                <span class="status-chip" id="question-progress">1/1</span>
             </div>`;
+
         document.body.appendChild(this.gameUI);
         this.elements.push(this.gameUI);
-        this._timerBarTrack = this.gameUI.querySelector('#timer-bar-track');
-        this._timerBarFill  = this.gameUI.querySelector('#timer-bar-fill');
+
+        // ── Result modal ────────────────────────────────────────────────────
+        this._resultModal = document.createElement('div');
+        this._resultModal.className = 'result-modal-backdrop hidden';
+        this._resultModal.id = 'result-modal';
+        this._resultModal.innerHTML = `
+            <div class="result-modal-card" id="result-modal-card">
+                <div class="confetti-container" id="confetti-container"></div>
+                <div class="result-modal-bar" id="result-modal-bar"></div>
+                <div class="result-modal-body">
+                    <p class="result-modal-title">Resultado da Parada</p>
+                    <div class="result-status-banner" id="result-status-banner">
+                        <div class="result-status-icon" id="result-status-icon"></div>
+                        <div class="result-status-title" id="result-status-title"></div>
+                        <div class="result-status-sub" id="result-status-sub"></div>
+                    </div>
+                    <div class="result-info-block">
+                        <div class="result-info-row">
+                            <span class="result-info-label">Resposta correta:</span>
+                            <span class="result-info-value" id="result-correct-label"></span>
+                        </div>
+                        <div class="result-info-row">
+                            <span class="result-info-label">Sua parada:</span>
+                            <span class="result-info-value" id="result-selected-label"></span>
+                        </div>
+                        <div class="result-info-row">
+                            <span class="result-info-label">Margem de erro:</span>
+                            <span class="result-info-value" id="result-margin"></span>
+                        </div>
+                    </div>
+                    <p class="result-distances-title">Distancias detalhadas:</p>
+                    <div class="result-distances-grid" id="result-distances-grid"></div>
+                    <button class="result-cta-btn" id="result-cta-btn"></button>
+                </div>
+            </div>`;
+        document.body.appendChild(this._resultModal);
+        this.elements.push(this._resultModal);
+
+        // DOM refs
+        this._timerShell      = this.gameUI.querySelector('#timer-shell');
+        this._timerBarFill    = this.gameUI.querySelector('#timer-bar-fill');
+        this._timerValue      = this.gameUI.querySelector('#timer-value');
+        this._statusMessage   = this.gameUI.querySelector('#status-message');
+        this._questionProgress = this.gameUI.querySelector('#question-progress');
+        this._inputSource     = null;
+        this._stateChip       = null;
+        this._livesTrack      = this.gameUI.querySelector('#lives-track');
+        this._challengeCard   = this.gameUI.querySelector('#challenge-card');
+        this._enunciadoText   = this.gameUI.querySelector('#enunciado-text');
+        this._wordTiles       = this.gameUI.querySelector('#word-tiles');
+        this._zonasHtml       = this.gameUI.querySelector('#zonas-html');
+    }
+
+    // ── Result modal helpers ─────────────────────────────────
+
+    _showResultModal(isCorrect) {
+        if (!this._resultModal) return;
+        const rp = this.resultPanel;
+        const bar    = document.getElementById('result-modal-bar');
+        const banner = document.getElementById('result-status-banner');
+        const icon   = document.getElementById('result-status-icon');
+        const title  = document.getElementById('result-status-title');
+        const sub    = document.getElementById('result-status-sub');
+        const cLabel = document.getElementById('result-correct-label');
+        const sLabel = document.getElementById('result-selected-label');
+        const margin = document.getElementById('result-margin');
+        const grid   = document.getElementById('result-distances-grid');
+        const btn    = document.getElementById('result-cta-btn');
+        const confetti = document.getElementById('confetti-container');
+
+        if (!bar) return;
+
+        const cls = isCorrect ? 'is-correct' : 'is-wrong';
+        bar.className    = `result-modal-bar ${cls}`;
+        banner.className = `result-status-banner ${cls}`;
+        icon.className   = `result-status-icon ${cls}`;
+        title.className  = `result-status-title ${cls}`;
+        sub.className    = `result-status-sub ${cls}`;
+        btn.className    = `result-cta-btn ${cls}`;
+
+        icon.textContent  = isCorrect ? '✓' : '✕';
+        title.textContent = isCorrect ? 'Acertou em cheio!' : 'Poxa, quase la.';
+        sub.textContent   = isCorrect ? '+10 Pontos' : '-1 Vida';
+
+        cLabel.textContent = rp.correctLabel;
+        sLabel.textContent = rp.selectedLabel;
+        const marginPct = rp.selectedDistance > 0
+            ? (rp.selectedDistance / Math.max(1, window.innerWidth) * 100).toFixed(1) + '%'
+            : '0%';
+        margin.textContent = marginPct;
+
+        const alts = this.questaoAtual?.alternativas ?? [];
+        grid.innerHTML = alts.map(alt => {
+            const zona = this.zonas.find(z => z.id === alt.id);
+            const anchor = this._getPlayerStopAnchor?.() ?? { x: this.player.x };
+            const dist = zona ? Math.abs(anchor.x - (zona.x + zona.w / 2)) : 0;
+            const pct = (dist / Math.max(1, window.innerWidth) * 100).toFixed(1);
+            const isSel = alt.label === rp.selectedLabel;
+            return `<div class="result-dist-chip${isSel ? ' is-selected' : ''}">
+                <span class="result-dist-label">${alt.label}</span>
+                <span class="result-dist-value">${pct}%</span>
+            </div>`;
+        }).join('');
+
+        btn.textContent = isCorrect ? 'Proxima Fase' : 'Tentar Novamente';
+
+        if (confetti) {
+            confetti.innerHTML = '';
+            if (isCorrect) {
+                const colors = ['hsl(193 95% 73%)', 'hsl(47 96% 62%)', 'hsl(145 64% 58%)', 'hsl(0 0% 100%)', 'hsl(42 98% 62%)'];
+                for (let i = 0; i < 28; i++) {
+                    const el = document.createElement('div');
+                    el.className = 'confetti-piece';
+                    el.style.cssText = `left:${Math.random() * 100}%;background:${colors[i % colors.length]};--dur:${(0.9 + Math.random() * 0.8).toFixed(2)}s;--delay:${(Math.random() * 0.5).toFixed(2)}s;transform:rotate(${Math.round(Math.random() * 360)}deg)`;
+                    confetti.appendChild(el);
+                }
+            }
+        }
+
+        this._resultModal.classList.remove('hidden');
+    }
+
+    _hideResultModal() {
+        if (this._resultModal) this._resultModal.classList.add('hidden');
+    }
+
+    _atualizarChallengeCard() {
+        if (!this._enunciadoText || !this._wordTiles) return;
+
+        // Enunciado
+        this._enunciadoText.textContent = this.questaoAtual?.enunciado ?? '';
+
+        // Word tiles — render each letter as an HTML tile
+        const word = String(this.currentWord ?? '').trim();
+        if (word) {
+            this._wordTiles.innerHTML = word.split('').map((char, i) => {
+                // First letter shown as "?" until robot passes it (simple reveal on first question)
+                const isFirst = (i === 0);
+                return `<span class="word-tile${isFirst ? ' word-tile-focus' : ''}">${char}</span>`;
+            }).join('');
+            this._wordTiles.style.display = 'flex';
+        } else {
+            this._wordTiles.innerHTML = '';
+            this._wordTiles.style.display = 'none';
+        }
+
+        if (this._challengeCard) {
+            this._challengeCard.style.display = this.questaoAtual ? 'flex' : 'none';
+        }
+    }
+
+    _atualizarZonasHtml() {
+        if (!this._zonasHtml) return;
+        const alts = this.questaoAtual?.alternativas ?? [];
+        const isCompreensao = this.state === PHASE_STATE.COMPREENSAO;
+
+        if (isCompreensao) {
+            this._zonasHtml.innerHTML = `
+                <button class="zona-btn zona-btn-compreh" data-zona-id="sabia">💡 Eu sabia!</button>
+                <button class="zona-btn zona-btn-compreh" data-zona-id="chutei">🎲 Foi chute</button>`;
+        } else {
+            this._zonasHtml.innerHTML = alts.map(alt =>
+                `<button class="zona-btn" data-zona-id="${alt.id}">${alt.label}</button>`
+            ).join('');
+        }
+
+        this._zonasHtml.style.display = 'flex';
+    }
+
+    _esconderZonasHtml() {
+        if (this._zonasHtml) this._zonasHtml.style.display = 'none';
+    }
+
+
+    _renderLivesTrack() {
+        return Array.from({ length: 3 }, (_, index) => {
+            const lostClass = index < this.lives ? '' : ' is-lost';
+            return `<span class="life-chip${lostClass}" aria-hidden="true"></span>`;
+        }).join('');
+    }
+
+    _getStatusBarMessage() {
+        const activeStates = [PHASE_STATE.ESPERA_ATIVA, PHASE_STATE.ESPERA_INCENTIVO, PHASE_STATE.ESPERA_2, PHASE_STATE.COMPREENSAO];
+        if (this.state === PHASE_STATE.COMPREENSAO) {
+            return 'Pare o robo em "Eu sabia" ou "Foi chute" para registrar a compreensao.';
+        }
+        if (this.state === PHASE_STATE.FEEDBACK_FINAL) {
+            return 'Feedback final em andamento. Observe a demonstracao da resposta correta.';
+        }
+        if (this.state === PHASE_STATE.FEEDBACK_ERRO) {
+            return 'Receba a dica visual e prepare a proxima tentativa.';
+        }
+        if (activeStates.includes(this.state)) {
+            return 'Espaco move e para o robo. Use as setas para trocar a direcao.';
+        }
+        return 'Acompanhe o desafio e aguarde o proximo passo do jogo.';
+    }
+
+    _getInputSourceLabel() {
+        if (this.bluetoothInput.isConnecting) return 'Entrada conectando';
+        if (this.bluetoothInput.isConnected) return 'Entrada bluetooth';
+        return 'Entrada teclado';
     }
 
     _instalarControlesGlobais() {
@@ -391,6 +626,7 @@ export class GamePhase extends Scene {
         this.zonasCompreensao = [];
         this.feedbackMessage  = '';
         this.resultPanel.visible = false;
+        this._hideResultModal();
         this._resetarPosicaoRobo();
         if (this._resultPanelTimerId) {
             clearTimeout(this._resultPanelTimerId);
@@ -398,6 +634,7 @@ export class GamePhase extends Scene {
         }
         this._selecionarPalavraAtual();
         this._atualizarLayoutPalavra();
+        this._atualizarChallengeCard();
 
         const gabarito = this.questaoAtual.alternativas?.find((alt) => alt.id === this.questaoAtual.correta);
         this.logAtual = new QuestionLog(
@@ -424,6 +661,7 @@ export class GamePhase extends Scene {
     _emitirEstimulo() {
         this._resetarWatchdogs();
         this._gerarZonas();
+        this._atualizarZonasHtml();
         this._mudarEstado(PHASE_STATE.ESPERA_ATIVA);
         this.reproduzirAudioQuestao(this.questaoAtual);
         this._inertiaTimerId = setTimeout(() => this._ativarModoIncentivoGamificado(), INERTIA_TRIGGER_MS);
@@ -484,6 +722,7 @@ export class GamePhase extends Scene {
     _iniciarVerificacaoCompreensao() {
         this._mudarEstado(PHASE_STATE.COMPREENSAO);
         this._gerarZonasCompreensao();
+        this._atualizarZonasHtml();
         this.reproduzirMidia('compreensao', 'Muito bem! Você SABIA a resposta ou foi um CHUTE?');
     }
 
@@ -555,6 +794,14 @@ export class GamePhase extends Scene {
     _processarResultadoFinal(statusFinal) {
         this._mudarEstado(PHASE_STATE.FEEDBACK_FINAL);
         this.movementControl.isMoving = false;
+        // Highlight correct answer in HTML
+        if (this._zonasHtml) {
+            const corretaId = this.questaoAtual?.correta;
+            this._zonasHtml.querySelectorAll('.zona-btn').forEach(btn => {
+                if (btn.dataset.zonaId === corretaId) btn.classList.add('zona-btn-correct');
+                else btn.classList.add('zona-btn-dim');
+            });
+        }
         if (this.logAtual.resolucao_final.status_resposta_cod !== statusFinal) {
             this.logAtual.finalizarJogada(
                 statusFinal,
@@ -579,6 +826,7 @@ export class GamePhase extends Scene {
         this._mudarEstado(PHASE_STATE.ENCERRAMENTO);
         this.movementControl.isMoving = false;
         this.resultPanel.visible = false;
+        this._hideResultModal();
         if (this.logAtual) {
             this.logAtual.marcarFimFeedback();
             if (this.logAtual._payloadEnviado && this.logsSession.length > 0) {
@@ -597,14 +845,10 @@ export class GamePhase extends Scene {
 
     draw() {
         if (!this.isActive || this.isPaused) return;
-        background(46, 153, 191);
+        // Canvas only handles: background, lane, player robot, sprite avatar
         this._drawCenario();
-        this._drawPalavraAtual();
-        this._drawZonas();
         this._drawPlayer();
         this._drawRobotSprite();
-        this._drawResultPanel();
-        this._drawHUD();
         this._atualizarMovimento();
         this._verificarColisoes();
         this._atualizarUI();
@@ -619,39 +863,11 @@ export class GamePhase extends Scene {
     }
 
     _drawPalavraAtual() {
-        if (!this.currentWord || !this.wordLayout.letters.length) return;
-
-        push();
-        for (const letter of this.wordLayout.letters) {
-            fill(0, 0, 0, 110);
-            noStroke();
-            rect(letter.x - 6, letter.y - 8, letter.size + 12, letter.size + 16, 12);
-
-            fill(255);
-            textAlign(CENTER, CENTER);
-            textStyle(BOLD);
-            textSize(letter.size * 0.72);
-            text(letter.char, letter.x + letter.size / 2, letter.y + letter.size / 2 + 2);
-        }
-        pop();
+        // Word tiles are now HTML — see _atualizarChallengeCard
     }
 
     _drawZona(zona) {
-        push();
-        rectMode(CORNER);
-        const corBorda = (zona.isCorrect && this.state === PHASE_STATE.FEEDBACK_FINAL)
-            ? [80, 220, 100] : [255, 255, 255];
-        stroke(...corBorda);
-        strokeWeight(3);
-        fill(255, 255, 255, 40);
-        rect(zona.x, zona.y, zona.w, zona.h, 12);
-        noStroke();
-        fill(255);
-        textAlign(CENTER, CENTER);
-        textSize(22);
-        textStyle(BOLD);
-        text(zona.label, zona.x + zona.w / 2, zona.y + zona.h / 2);
-        pop();
+        // Zones are now HTML buttons — canvas zones are invisible hit areas
     }
 
     _drawPlayer() {
@@ -696,7 +912,7 @@ export class GamePhase extends Scene {
     }
 
     _drawSpeechBubble(spriteX, spriteY, spriteW) {
-        const minY = LAYOUT.HUD_H + LAYOUT.ENUNCIADO_H + LAYOUT.PALAVRA_BADGE_H + 6;
+        const minY = LAYOUT.HUD_H + 8;
         const bubbleW = Math.min(spriteW + 24, width - spriteX - 4);
         const bubbleH = 60;
         const bx = spriteX - 2;
@@ -744,95 +960,11 @@ export class GamePhase extends Scene {
     }
 
     _drawHUD() {
-        push();
-        rectMode(CORNER);
-
-        // ── Zona 2: Enunciado (abaixo do HUD HTML) ──────────────────────────
-        if (this.questaoAtual && this.state !== PHASE_STATE.IDLE) {
-            const ey = LAYOUT.HUD_H + 4;
-            fill(0, 0, 0, 170); noStroke();
-            rect(16, ey, width - 32, LAYOUT.ENUNCIADO_H - 8, 10);
-            fill(255, 215, 0);
-            textAlign(CENTER, CENTER);
-            textSize(Math.max(16, Math.min(22, width * 0.028)));
-            textStyle(BOLD);
-            text(this.questaoAtual.enunciado ?? '', width / 2, ey + (LAYOUT.ENUNCIADO_H - 8) / 2);
-        }
-
-        // ── Crachá "Palavra sorteada" — faixa fixa abaixo do enunciado ──────
-        if (this.currentWord) {
-            const py = LAYOUT.HUD_H + LAYOUT.ENUNCIADO_H + 2;
-            fill(0, 0, 0, 120); noStroke();
-            rect(16, py, width - 32, LAYOUT.PALAVRA_BADGE_H, 8);
-            fill(200, 240, 255);
-            textAlign(CENTER, CENTER);
-            textSize(15);
-            textStyle(NORMAL);
-            text(`Palavra: ${this.currentWord}`, width / 2, py + LAYOUT.PALAVRA_BADGE_H / 2);
-        }
-
-        // ── Zona 6: Rodapé — controles + debug ──────────────────────────────
-        const rodapeY = height - LAYOUT.RODAPE_H;
-        fill(0, 0, 0, 100); noStroke();
-        rect(0, rodapeY, width, LAYOUT.RODAPE_H);
-
-        const podeMover = [PHASE_STATE.ESPERA_ATIVA, PHASE_STATE.ESPERA_INCENTIVO, PHASE_STATE.ESPERA_2, PHASE_STATE.COMPREENSAO].includes(this.state);
-        if (podeMover) {
-            fill(255, 255, 255, 180); textAlign(CENTER, CENTER); textSize(12); textStyle(NORMAL);
-            text('ESPAÇO = mover/parar  |  ← → = direção', width / 2, rodapeY + 14);
-        }
-
-        // Debug compacto
-        fill(255, 255, 255, 60); textAlign(LEFT, BOTTOM); textSize(10); textStyle(NORMAL);
-        text(
-            `${this.state} | Q${this.questaoAtualIndex + 1}/${this.questoes.length} | ${this.movementControl.isMoving ? '▶' : '■'} | ${this.movementControl.direction > 0 ? '→' : '←'}`,
-            10, height - 4
-        );
-
-        pop();
+        // Enunciado + word badge are drawn by the styled second _drawHUD below
+        // This first version is kept as a no-op to avoid duplicate drawing
     }
     _drawResultPanel() {
-        if (!this.resultPanel.visible) return;
-
-        const panelW = Math.min(680, width - 60);
-        const panelH = Math.min(260, height - 120);
-        const x = (width - panelW) / 2;
-        const y = Math.max(80, (height - panelH) / 2);
-
-        push();
-        rectMode(CORNER);
-        fill(0, 0, 0, 205);
-        stroke(255, 255, 255, 180);
-        strokeWeight(2);
-        rect(x, y, panelW, panelH, 14);
-
-        noStroke();
-        fill(255, 215, 0);
-        textAlign(LEFT, TOP);
-        textSize(24);
-        textStyle(BOLD);
-        text('Resultado da parada', x + 18, y + 14);
-
-        fill(255);
-        textSize(16);
-        textStyle(NORMAL);
-        text(`Mais perto: ${this.resultPanel.selectedLabel} (${Math.round(this.resultPanel.selectedDistance)} px)`, x + 18, y + 56);
-        text(`Resposta correta: ${this.resultPanel.correctLabel} (${Math.round(this.resultPanel.correctDistance)} px)`, x + 18, y + 84);
-        text(`Proximidade da correta: ${this.resultPanel.proximityLabel}`, x + 18, y + 112);
-
-        fill(180, 230, 255);
-        textStyle(BOLD);
-        text('Distância entre letras/opções:', x + 18, y + 144);
-        fill(255);
-        textStyle(NORMAL);
-        const lines = this.resultPanel.interOptionDistances.length
-            ? this.resultPanel.interOptionDistances
-            : ['Sem dados de distância entre opções.'];
-        for (let i = 0; i < Math.min(4, lines.length); i += 1) {
-            text(lines[i], x + 24, y + 170 + i * 22);
-        }
-
-        pop();
+        // Result panel is now an HTML modal — see _showResultModal / _hideResultModal
     }
 
     // ── Movimento e colisão ──────────────────────────────────
@@ -958,10 +1090,9 @@ export class GamePhase extends Scene {
     }
 
     _getPlayerLaneY() {
-        // Centro vertical da zona de jogo (zona 3)
-        const topY = LAYOUT.HUD_H + LAYOUT.ENUNCIADO_H + LAYOUT.PALAVRA_BADGE_H + 8;
-        const botY = height - LAYOUT.ZONAS_H - LAYOUT.RODAPE_H - 8;
-        return topY + (botY - topY) * 0.55;
+        // Canvas covers full height; HTML overlays handle top/bottom zones.
+        // Player lane sits at ~55% of canvas height.
+        return height * 0.55;
     }
 
     _obterPosicaoAtualPassos() {
@@ -1285,6 +1416,7 @@ export class GamePhase extends Scene {
             this._resolverParadaPorProximidade();
         } else {
             this.resultPanel.visible = false;
+            this._hideResultModal();
         }
     }
 
@@ -1314,7 +1446,7 @@ export class GamePhase extends Scene {
             ? maisProxima?.zona ?? null
             : (maisProxima?.overlaps ? maisProxima.zona : null);
 
-        this.resultPanel.visible = true;
+        this.resultPanel.visible = false; // not used for drawing anymore
         this.resultPanel.selectedLabel = zonaSelecionada?.label ?? 'Zona neutra';
         this.resultPanel.selectedDistance = maisProxima.distanceX;
         this.resultPanel.correctLabel = correta?.label ?? '—';
@@ -1322,11 +1454,14 @@ export class GamePhase extends Scene {
         this.resultPanel.proximityLabel = this._classificarProximidade(distCorreta);
         this.resultPanel.interOptionDistances = this._calcularDistanciasEntreOpcoes(zonasAtivas);
 
+        const isModalCorrect = zonaSelecionada?.isCorrect === true;
+        this._showResultModal(isModalCorrect);
+
         this.movementControl.pendingResolution = true;
         if (this._resultPanelTimerId) clearTimeout(this._resultPanelTimerId);
         this._resultPanelTimerId = setTimeout(() => {
             this.movementControl.pendingResolution = false;
-            this.resultPanel.visible = false;
+            this._hideResultModal();
             this._resultPanelTimerId = null;
 
             if (this.state === PHASE_STATE.COMPREENSAO) {
@@ -1478,9 +1613,278 @@ export class GamePhase extends Scene {
 
     // ── Cleanup ──────────────────────────────────────────────
 
+    _drawCenario() {
+        background(10, 22, 36);
+
+        const laneY = this._getPlayerLaneY() + this.player.h * 0.48;
+        const zone  = this._getSpriteZone();
+
+        push();
+        noStroke();
+
+        // Lane track
+        fill(255, 255, 255, 8);
+        rect(20, laneY - 18, width - 40, 36, 18);
+        fill(6, 20, 32, 90);
+        rect(44, laneY - 7, width - 88, 14, 999);
+
+        // Sprite area bg
+        fill(8, 20, 30, 60);
+        rect(zone.x - 10, zone.y - 10, zone.w + 20, zone.h + 20, 14);
+
+        pop();
+    }
+
+        _drawVerticalGradient(fromColor, toColor, x, y, w, h) {
+        push();
+        noFill();
+        for (let i = 0; i < h; i += 2) {
+            const amount = constrain(i / Math.max(1, h), 0, 1);
+            stroke(lerpColor(fromColor, toColor, amount));
+            line(x, y + i, x + w, y + i);
+        }
+        pop();
+    }
+
+    _drawPalavraAtual() {
+        if (!this.currentWord || !this.wordLayout.letters.length) return;
+
+        push();
+        rectMode(CORNER);
+        textAlign(CENTER, CENTER);
+        textStyle(BOLD);
+
+        for (const letter of this.wordLayout.letters) {
+            const tileX = letter.x - 4;
+            const tileY = letter.y - 6;
+            const tileW = letter.size + 8;
+            const tileH = letter.size + 14;
+
+            // Shadow
+            fill(0, 0, 0, 60);
+            noStroke();
+            rect(tileX + 3, tileY + 5, tileW, tileH, 14);
+
+            // Tile body — dark teal card
+            stroke(100, 200, 220, 50);
+            strokeWeight(1.5);
+            fill(14, 55, 72, 230);
+            rect(tileX, tileY, tileW, tileH, 14);
+
+            // Shine
+            noStroke();
+            fill(255, 255, 255, 15);
+            rect(tileX + 3, tileY + 3, tileW - 6, tileH * 0.32, 12);
+
+            // Letter
+            fill(255);
+            textSize(letter.size * 0.66);
+            text(letter.char, letter.x + letter.size / 2, letter.y + letter.size / 2 + 3);
+        }
+        pop();
+    }
+
+        _drawZona(zona) {
+        const isCompreensao    = this.state === PHASE_STATE.COMPREENSAO;
+        const isResolvedCorrect = zona.isCorrect && this.state === PHASE_STATE.FEEDBACK_FINAL;
+
+        push();
+        rectMode(CORNER);
+
+        // Shadow
+        noStroke();
+        fill(0, 0, 0, 55);
+        rect(zona.x + 2, zona.y + 6, zona.w, zona.h, 18);
+
+        // Card fill
+        const fillAlpha = 210;
+        if (isResolvedCorrect)      fill(68, 200, 120, fillAlpha);
+        else if (isCompreensao)     fill(200, 160, 40, fillAlpha);
+        else                        fill(20, 90, 120, fillAlpha);
+
+        stroke(255, 255, 255, 35);
+        strokeWeight(1.5);
+        rect(zona.x, zona.y, zona.w, zona.h, 18);
+
+        // Shine strip
+        noStroke();
+        fill(255, 255, 255, 22);
+        rect(zona.x + 3, zona.y + 3, zona.w - 6, zona.h * 0.33, 14);
+
+        // Label
+        if (isCompreensao)      fill(60, 40, 10);
+        else if (isResolvedCorrect) fill(20, 50, 30);
+        else                    fill(255);
+
+        textAlign(CENTER, CENTER);
+        textStyle(BOLD);
+        textSize(isCompreensao ? 20 : 26);
+        text(zona.label, zona.x + zona.w / 2, zona.y + zona.h / 2 + 1);
+        pop();
+    }
+
+        _drawSpeechBubble(spriteX, spriteY, spriteW) {
+        const minY = LAYOUT.HUD_H + 8;
+        const bubbleW = Math.min(Math.max(190, spriteW + 40), width - spriteX - 6);
+        const lines = this._quebrarTexto(this.feedbackMessage, bubbleW - 30);
+        const bubbleH = Math.max(68, 34 + lines.length * 18);
+        const bx = spriteX - 6;
+        const by = spriteY - bubbleH - 18;
+
+        if (by < minY) return;
+
+        push();
+        rectMode(CORNER);
+        stroke(255, 255, 255, 120);
+        strokeWeight(1.4);
+        fill(this.feedbackColor[0], this.feedbackColor[1], this.feedbackColor[2], 228);
+        rect(bx, by, bubbleW, bubbleH, 18);
+
+        noStroke();
+        triangle(
+            bx + bubbleW * 0.36,
+            by + bubbleH,
+            bx + bubbleW * 0.36 + 16,
+            by + bubbleH,
+            bx + bubbleW * 0.36 + 8,
+            by + bubbleH + 12
+        );
+
+        fill(19, 24, 29);
+        textAlign(CENTER, CENTER);
+        textStyle(BOLD);
+        textSize(13);
+        lines.forEach((lineText, index) => {
+            text(lineText, bx + bubbleW / 2, by + 22 + index * 18);
+        });
+        pop();
+    }
+
+    _drawHUD() {
+        // All HUD/enunciado/word rendering is now HTML — canvas is clean
+    }
+
+        _drawResultPanel() {
+        // Result panel is now an HTML modal — see _showResultModal / _hideResultModal
+    }
+
+    _gerarZonas() {
+        if (!this.questaoAtual?.alternativas) return;
+        const alts = this.questaoAtual.alternativas;
+        // Invisible hit zones — same horizontal layout as HTML buttons
+        const zH  = 64;
+        const zW  = Math.min(200, (width - 64) / alts.length - 16);
+        const gap = Math.max(16, (width - 32 - alts.length * zW) / (alts.length + 1));
+        // Place at lane level so proximity detection works
+        const zY  = this._getPlayerLaneY() - zH / 2;
+
+        this.zonas = alts.map((alt, index) => ({
+            id: alt.id,
+            label: alt.label,
+            x: gap + index * (zW + gap),
+            y: zY,
+            w: zW,
+            h: zH,
+            isCorrect: alt.id === this.questaoAtual.correta,
+        }));
+
+        const zonaCorreta = this.zonas.find(z => z.isCorrect);
+        if (zonaCorreta && this.logAtual) {
+            this.logAtual.registrarAlvoEsperado(
+                Math.round(zonaCorreta.x),
+                Math.round(zonaCorreta.x + zonaCorreta.w)
+            );
+        }
+    }
+
+    _getSpriteZone() {
+        const spriteW = Math.min(LAYOUT.SPRITE_W_MAX, width * LAYOUT.SPRITE_W_FRAC);
+        const spriteH = spriteW * 1.16;
+        const h = Math.min(spriteH, height * 0.28);
+        const w = h / 1.16;
+        const x = width - w - LAYOUT.SPRITE_GAP;
+        const y = height * 0.34 - h / 2;
+        return { x, y, w, h };
+    }
+
+    _getLayoutConstraints() {
+        const topY = LAYOUT.HUD_H + 16;
+        const botY = height - LAYOUT.RODAPE_H - 22;
+        return { topY, botY };
+    }
+
+    _gerarZonasCompreensao() {
+        const zW = Math.min(220, (width - 96) / 2);
+        const zH = 88;
+        const gap = 24;
+        const totalWidth = zW * 2 + gap;
+        const startX = (width - totalWidth) / 2;
+        const y = height - LAYOUT.RODAPE_H - LAYOUT.ZONAS_H - 100;
+
+        this.zonasCompreensao = [
+            { id: 'sabia', label: 'Eu sabia', x: startX, y, w: zW, h: zH },
+            { id: 'chutei', label: 'Foi chute', x: startX + zW + gap, y, w: zW, h: zH },
+        ];
+    }
+
+    _getPlayerLaneY() {
+        const topY = LAYOUT.HUD_H + LAYOUT.ENUNCIADO_H + LAYOUT.PALAVRA_BADGE_H + 24;
+        const botY = height - LAYOUT.ZONAS_H - LAYOUT.RODAPE_H - 46;
+        return topY + (botY - topY) * 0.54;
+    }
+
+    _getStateLabel() {
+        return String(this.state ?? 'idle').replaceAll('_', ' ');
+    }
+
+    _atualizarUI() {
+        const el = id => document.getElementById(id);
+
+        if (el('score-value')) el('score-value').textContent = `${this.score} pts`;
+        if (el('phase-value')) el('phase-value').textContent = `Fase ${this.phaseNumber}`;
+        if (this._livesTrack)  this._livesTrack.innerHTML = this._renderLivesTrack();
+        if (this._questionProgress)
+            this._questionProgress.textContent = `${Math.max(1, this.questaoAtualIndex + 1)}/${this.questoes.length}`;
+        if (this._statusMessage)
+            this._statusMessage.textContent = this._getStatusBarMessage();
+
+        if (this._timerShell && this._timerBarFill) {
+            if (this.showTimerBadge && this.timerIncentivo > 0) {
+                const pct = Math.max(0, (this.timerIncentivo / (TIMEOUT_DURATION_MS / 1000)) * 100).toFixed(1);
+                this._timerShell.classList.add('is-visible');
+                this._timerBarFill.style.width = `${pct}%`;
+                if (this._timerValue) this._timerValue.textContent = `${this.timerIncentivo}s`;
+            } else {
+                this._timerShell.classList.remove('is-visible');
+                this._timerBarFill.style.width = '100%';
+                if (this._timerValue) this._timerValue.textContent = `${TIMEOUT_DURATION_MS / 1000}s`;
+            }
+        }
+    }
+
+    _alternarMovimentoComEspaco() {
+        const estadosAtivos = [PHASE_STATE.ESPERA_ATIVA, PHASE_STATE.ESPERA_INCENTIVO, PHASE_STATE.ESPERA_2, PHASE_STATE.COMPREENSAO];
+        if (!estadosAtivos.includes(this.state)) return;
+        if (this.movementControl.pendingResolution) return;
+
+        this.movementControl.isMoving = !this.movementControl.isMoving;
+        this.feedbackMessage = this.movementControl.isMoving
+            ? `Buscando resposta ${this.movementControl.direction > 0 ? 'a frente' : 'de volta'}`
+            : 'Robo parado para avaliacao';
+        this.feedbackColor = this.movementControl.isMoving ? [188, 244, 255] : [255, 228, 164];
+
+        if (!this.movementControl.isMoving) {
+            this._resolverParadaPorProximidade();
+        } else {
+            this.resultPanel.visible = false;
+            this._hideResultModal();
+        }
+    }
+
     cleanup() {
         super.cleanup();
         this._limparTimers();
+        this._hideResultModal();
         if (this._resultPanelTimerId) {
             clearTimeout(this._resultPanelTimerId);
             this._resultPanelTimerId = null;

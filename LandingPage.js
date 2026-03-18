@@ -1,8 +1,8 @@
 import { Scene } from './Scene.js';
 
 /**
- * Classe LandingPage - Tela inicial do jogo
- * Herda de Scene e implementa a interface da landing page
+ * LandingPage - tela inicial do jogo.
+ * Mantem a logica simples da cena, mas usa a nova estrutura visual da landing.
  */
 export class LandingPage extends Scene {
     constructor() {
@@ -10,37 +10,35 @@ export class LandingPage extends Scene {
         this.overlay = null;
         this.playButton = null;
         this.infoButton = null;
+        this.instructionsModal = null;
+        this.closeButtons = [];
+        this._handleBackdropClick = null;
+        this._handleEscape = null;
     }
 
-    /**
-     * Configura a landing page
-     */
     setup() {
         super.setup();
         this.createOverlay();
         this.setupButtons();
+        this.setupModal();
     }
 
-    /**
-     * Cria a overlay HTML da landing page
-     */
     createOverlay() {
-        // A overlay já existe no HTML, apenas precisamos referenciá-la
         this.overlay = document.querySelector('.content-overlay');
         if (this.overlay) {
             this.overlay.style.display = 'flex';
         }
     }
 
-    /**
-     * Configura os botões da landing page
-     */
     setupButtons() {
         this.playButton = document.querySelector('.btn-play');
         this.infoButton = document.querySelector('.btn-info');
 
         if (this.playButton) {
-            this.playButton.onclick = () => this.onPlayClicked();
+            this.playButton.onclick = () => {
+                this.hideInstructions();
+                this.onPlayClicked();
+            };
         }
 
         if (this.infoButton) {
@@ -48,76 +46,86 @@ export class LandingPage extends Scene {
         }
     }
 
-    /**
-     * Desenha o background animado da landing page
-     */
+    setupModal() {
+        this.instructionsModal = document.getElementById('instructions-modal');
+        this.closeButtons = Array.from(document.querySelectorAll('[data-close-modal]'));
+
+        this.closeButtons.forEach((button) => {
+            button.onclick = () => this.hideInstructions();
+        });
+
+        this._handleBackdropClick = (event) => {
+            if (event.target === this.instructionsModal) {
+                this.hideInstructions();
+            }
+        };
+
+        this._handleEscape = (event) => {
+            if (event.code === 'Escape') {
+                this.hideInstructions();
+            }
+        };
+
+        if (this.instructionsModal) {
+            this.instructionsModal.onclick = this._handleBackdropClick;
+        }
+        document.addEventListener('keydown', this._handleEscape);
+    }
+
     draw() {
         if (!this.isActive) return;
 
-        // Background com transparência para efeito de overlay
-        background(46, 153, 191, 25);
-        
-        // Você pode adicionar partículas ou outros efeitos visuais aqui
-        this.drawParticles();
+        clear();
     }
 
-    /**
-     * Desenha partículas decorativas (exemplo)
-     */
-    drawParticles() {
-        // Implementação de partículas pode ser adicionada aqui
-        // Por exemplo, círculos flutuantes, estrelas, etc.
-    }
-
-    /**
-     * Callback quando o botão Play é clicado
-     */
     onPlayClicked() {
         console.log('Play button clicked!');
-        // Este método será sobrescrito pelo GameManager para trocar de cena
     }
 
-    /**
-     * Callback quando o botão Info é clicado
-     */
     onInfoClicked() {
-        console.log('Info button clicked!');
-        // Pode abrir um modal com instruções
         this.showInstructions();
     }
 
-    /**
-     * Mostra instruções do jogo
-     */
     showInstructions() {
-        // Implementar modal de instruções
-        alert('Instruções do jogo serão exibidas aqui!');
+        if (!this.instructionsModal) return;
+        this.instructionsModal.classList.remove('hidden');
+        this.instructionsModal.setAttribute('aria-hidden', 'false');
     }
 
-    /**
-     * Ativa a landing page
-     */
+    hideInstructions() {
+        if (!this.instructionsModal) return;
+        this.instructionsModal.classList.add('hidden');
+        this.instructionsModal.setAttribute('aria-hidden', 'true');
+    }
+
     enter() {
         super.enter();
         if (this.overlay) {
             this.overlay.style.display = 'flex';
         }
+        this.hideInstructions();
     }
 
-    /**
-     * Desativa a landing page
-     */
     exit() {
         super.exit();
+        this.hideInstructions();
         if (this.overlay) {
             this.overlay.style.display = 'none';
         }
     }
 
-    /**
-     * Lida com redimensionamento
-     */
+    cleanup() {
+        this.hideInstructions();
+        if (this.instructionsModal) {
+            this.instructionsModal.onclick = null;
+        }
+        if (this._handleEscape) {
+            document.removeEventListener('keydown', this._handleEscape);
+        }
+        super.cleanup();
+    }
+
     handleResize() {
-        // Ajustes específicos da landing page se necessário
+        // sem acao adicional por enquanto
     }
 }

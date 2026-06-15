@@ -1,0 +1,486 @@
+/* ============================================================
+   game-styles.css — NeuroBeep v2 HUD
+   Tokenizado com temas Diurno / Foco
+   ============================================================ */
+
+/* ── Base ──────────────────────────────────────────────────── */
+.game-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  transition: background-color 250ms ease-in-out, color 250ms ease-in-out;
+}
+
+/* ── TOP HUD ───────────────────────────────────────────────── */
+.game-top-shell {
+  padding: 10px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+/* HUD compacto: uma linha unica */
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hud-pill {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: var(--cor-botao-idle);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--sombra-suave);
+  transition: background 250ms ease-in-out, border-color 250ms ease-in-out, color 250ms ease-in-out;
+  pointer-events: auto;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.hud-pill-score { justify-content: flex-start; }
+
+.hud-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  flex-shrink: 0;
+  color: var(--cor-icone);
+}
+
+.hud-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.hud-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(0.9rem, 1.8vw, 1.1rem);
+  font-weight: 800;
+  color: var(--cor-texto);
+  transition: color 250ms ease-in-out;
+}
+
+.lives-track {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.life-chip {
+  width: 18px;
+  height: 18px;
+  fill: var(--danger);
+  filter: drop-shadow(0 0 4px hsla(359 89% 65% / 0.5));
+  transition: opacity 160ms, transform 160ms, filter 160ms;
+}
+
+.life-chip.is-lost {
+  opacity: 0.2;
+  filter: grayscale(1);
+  transform: scale(0.8);
+}
+
+/* ── Timer (only visible on inertia) ──────────────────────── */
+.timer-shell {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--cor-botao-idle);
+  backdrop-filter: blur(12px);
+  transition: background 250ms ease-in-out, border-color 250ms ease-in-out;
+  min-height: 44px;
+}
+
+.timer-shell.is-visible { display: flex; }
+
+.timer-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--cor-texto);
+  opacity: 0.55;
+}
+
+.timer-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--cor-texto);
+  white-space: nowrap;
+  transition: color 250ms ease-in-out;
+}
+
+.timer-bar-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: hsla(0 0% 100% / 0.1);
+}
+
+.timer-bar-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.95s linear;
+}
+
+/* ── Challenge card ────────────────────────────────────────── */
+.game-challenge-card {
+  margin: 8px 12px 0;
+  padding: 10px 16px 10px;
+  border-radius: var(--borda-arredondada);
+  max-width: 70%;
+  border: 1px solid var(--line-soft);
+  background: var(--cor-botao-idle);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--sombra-suave);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  transition: background 250ms ease-in-out, border-color 250ms ease-in-out;
+}
+
+/* Kicker removido — texto nao essencial */
+
+/* Enunciado removido da UI — entregue via audio */
+
+/* ── Word tiles ────────────────────────────────────────────── */
+.game-word-tiles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.word-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(46px, 6vw, 66px);
+  height: clamp(52px, 6.5vw, 74px);
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--cor-botao-idle);
+  color: var(--cor-texto);
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(1.25rem, 2.8vw, 1.8rem);
+  font-weight: 900;
+  box-shadow: var(--sombra-suave);
+  transition: transform 200ms ease, background 250ms ease-in-out, color 250ms ease-in-out;
+}
+
+.word-tile-focus {
+  background: var(--cor-botao-hover);
+  border-style: dashed;
+  border-color: var(--line-strong);
+  color: var(--cor-texto);
+  opacity: 0.7;
+}
+
+/* ── Zones (HTML buttons) — AMPLIADAS ─────────────────────── */
+.game-zonas-html {
+  position: fixed;
+  bottom: 58px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 110;
+}
+
+.zona-btn {
+  flex: 1;
+  max-width: 320px;
+  height: 88px;
+  border: 1.5px solid var(--line-soft);
+  border-radius: var(--borda-arredondada);
+  background: var(--cor-botao-idle);
+  backdrop-filter: blur(10px);
+  color: var(--cor-texto);
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  font-weight: 900;
+  cursor: default;
+  box-shadow: var(--sombra-suave);
+  transition: background 250ms ease-in-out, border-color 250ms ease-in-out, transform 160ms, color 250ms ease-in-out;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zona-btn:hover { transform: translateY(-1px); background: var(--cor-botao-hover); }
+.zona-btn:active { background: var(--cor-botao-pressed); }
+
+.zona-btn-compreh {
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  background: var(--cor-botao-idle);
+  border-color: var(--line-soft);
+}
+
+.zona-btn-correct {
+  background: var(--success);
+  border-color: var(--success);
+  box-shadow: 0 0 20px hsla(145 64% 52% / 0.3);
+}
+
+.zona-btn-dim {
+  opacity: 0.35;
+}
+
+/* ── Status bar ────────────────────────────────────────────── */
+.game-statusbar {
+  position: fixed;
+  bottom: 8px;
+  left: 12px;
+  right: 12px;
+  height: 44px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--cor-botao-idle);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  z-index: 110;
+  transition: background 250ms ease-in-out, border-color 250ms ease-in-out;
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--cor-texto);
+  opacity: 0.5;
+}
+
+.status-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.status-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: hsla(0 0% 100% / 0.06);
+  color: var(--cor-texto);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0.55;
+  transition: color 250ms ease-in-out;
+}
+
+/* ── Result modal — SIMPLIFICADO ──────────────────────────── */
+.result-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: hsla(205 45% 5% / 0.7);
+  backdrop-filter: blur(18px);
+  animation: fadeIn 0.2s ease;
+  pointer-events: auto;
+}
+
+.result-modal-backdrop.hidden { display: none; }
+
+.result-modal-card {
+  position: relative;
+  width: min(460px, 100%);
+  border-radius: var(--borda-arredondada);
+  border: 1px solid var(--line-soft);
+  background: var(--cor-fundo-hud);
+  color: var(--cor-texto);
+  box-shadow: 0 28px 70px hsla(203 52% 5% / 0.5);
+  overflow: hidden;
+  animation: slideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background 250ms ease-in-out, color 250ms ease-in-out, border-color 250ms ease-in-out;
+}
+
+.result-modal-bar { height: 4px; }
+.result-modal-bar.is-correct { background: var(--success); }
+.result-modal-bar.is-wrong   { background: var(--danger); }
+
+.result-modal-body { padding: 22px 26px 26px; }
+
+.result-modal-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--cor-texto);
+  text-align: center;
+  margin-bottom: 14px;
+  transition: color 250ms ease-in-out;
+}
+
+.result-status-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 16px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  text-align: center;
+  transition: background 250ms ease-in-out, border-color 250ms ease-in-out;
+}
+
+.result-status-banner.is-correct {
+  background: hsla(145 64% 52% / 0.1);
+  border: 1px solid var(--success);
+}
+
+.result-status-banner.is-wrong {
+  background: hsla(4 85% 60% / 0.09);
+  border: 1px solid var(--danger);
+}
+
+.result-status-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+}
+
+.result-status-icon.is-correct {
+  background: hsla(145 64% 52% / 0.15);
+  color: var(--success);
+}
+
+.result-status-icon.is-wrong {
+  background: hsla(4 85% 60% / 0.13);
+  color: var(--danger);
+}
+
+.result-status-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  transition: color 250ms ease-in-out;
+}
+
+.result-status-title.is-correct { color: var(--success); }
+.result-status-title.is-wrong   { color: var(--danger); }
+
+.result-status-sub {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: color 250ms ease-in-out;
+}
+
+.result-status-sub.is-correct { color: var(--success); opacity: 0.68; }
+.result-status-sub.is-wrong   { color: var(--danger); opacity: 0.68; }
+
+/* Info block simplificado mantido */
+.result-info-block {
+  background: var(--cor-botao-idle);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  transition: background 250ms ease-in-out, border-color 250ms ease-in-out;
+}
+
+.result-info-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 4px 0; font-size: 0.84rem;
+}
+
+.result-info-row + .result-info-row { border-top: 1px solid var(--line-soft); }
+
+.result-info-label { color: var(--cor-texto); opacity: 0.48; }
+.result-info-value { font-weight: 700; color: var(--cor-texto); }
+
+/* Distancias detalhadas REMOVIDAS do layout — simplificado */
+
+.result-cta-btn {
+  display: block; width: 100%; margin-top: 14px;
+  padding: 13px 20px; border: 0; border-radius: 14px;
+  font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 800;
+  cursor: pointer; transition: transform 150ms, box-shadow 150ms, background 250ms ease-in-out;
+  pointer-events: auto;
+  min-height: 44px;
+}
+
+.result-cta-btn.is-correct {
+  background: var(--success);
+  color: var(--cor-texto);
+  box-shadow: 0 10px 28px hsla(145 64% 52% / 0.26);
+}
+
+.result-cta-btn.is-wrong {
+  background: var(--accent);
+  color: var(--cor-texto);
+  box-shadow: 0 10px 28px hsla(42 98% 62% / 0.26);
+}
+
+.result-cta-btn:hover  { transform: translateY(-2px); }
+.result-cta-btn:active { transform: translateY(1px); }
+
+/* Confetti */
+.confetti-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  top: -10px;
+  border-radius: 2px;
+  animation: confettiFall var(--dur,1.2s) var(--delay,0s) ease-in forwards;
+}
+
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes slideUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity:1; }
+  80% { opacity:1; }
+  100% { transform: translateY(320px) rotate(720deg); opacity:0; }
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .game-top-shell   { padding: 8px 10px 0; }
+  .hud-pill         { height: 40px; padding: 0 10px; }
+  .game-challenge-card { margin: 6px 10px 0; padding: 12px 14px 10px; }
+  .word-tile        { width: 34px; height: 38px; font-size: 0.95rem; border-radius: 10px; }
+  .zona-btn         { height: 72px; border-radius: 14px; }
+  .game-zonas-html  { bottom: 52px; left: 10px; right: 10px; gap: 8px; }
+  .game-statusbar   { bottom: 6px; left: 10px; right: 10px; height: 40px; }
+}

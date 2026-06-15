@@ -1,5 +1,7 @@
 // GameManager.js
 
+import { AudioNarrator } from './AudioNarrator.js';
+
 /**
  * GameManager — Orquestrador central do NeuroBeep
  *
@@ -55,11 +57,16 @@ export class GameManager {
 
     /**
      * Ponto de entrada — chamado pelo sketch.js após registrar todas as cenas.
-     * Sempre inicia na landing page.
+     * Se existir a cena 'landing', inicia nela. Caso contrário aguarda
+     * CMD_START_GAME sem travar (modo dashboard sem landing page).
      */
     init() {
         console.log('[GameManager] Inicializado');
-        this.switchTo('landing');
+        if (this.scenes.has('landing')) {
+            this.switchTo('landing');
+        } else {
+            console.log('[GameManager] Sem landing registrada — aguardando CMD_START_GAME.');
+        }
     }
 
     // ──────────────────────────────────────────────────────────
@@ -90,16 +97,18 @@ export class GameManager {
             this.currentScene.cleanup();
         }
 
-        // Ativa a nova
         this.currentScene = nextScene;
-        this.currentScene.setup();
-        this.currentScene.enter();
 
-        // Injeta callbacks opcionais
+        // Injeta callbacks ANTES do setup() para que initializePhase() já os encontre.
+        // Fases com questoes=[] encerram de forma síncrona dentro do setup(),
+        // então o callback precisa estar disponível antes de setup() ser chamado.
         if (options.onPhaseComplete) this.currentScene.onPhaseComplete = options.onPhaseComplete;
         if (options.onGameOver)      this.currentScene.onGameOver      = options.onGameOver;
         if (options.onBaselineOk)    this.currentScene.onBaselineOk    = options.onBaselineOk;
         if (options.onRoteiroChosen) this.currentScene.onRoteiroChosen = options.onRoteiroChosen;
+
+        this.currentScene.setup();
+        this.currentScene.enter();
 
         console.log(`[GameManager] → "${sceneKey}"`);
     }
@@ -113,10 +122,16 @@ export class GameManager {
      * Direciona para a seleção de roteiro (§5).
      */
     startGame() {
+        if (this.currentScene?.isActive) {
+            console.warn('[GameManager] startGame() ignorado — jogo já em execução.');
+            return;
+        }
         const hasFlowScenes = this.scenes.has('roteiro') && this.scenes.has('baseline');
         console.log('[GameManager] Iniciando jogo');
         this.sessionState.totalScore  = 0;
         this.sessionState.payloadsPedagogicos = [];
+
+        AudioNarrator.playBoasVindas();
 
         // Compatibilidade: se as cenas de fluxo não estiverem registradas,
         // começa direto na phase1.
@@ -181,6 +196,8 @@ export class GameManager {
         // Injeta as questões do roteiro diretamente na fase
         fase.questoes = roteiro.questoes ?? [];
         this.sessionState.currentPhase = Number(faseKey.replace('phase', '')) || 1;
+
+        AudioNarrator.playFase(this.sessionState.currentPhase);
 
         this.switchTo(faseKey, {
             // Quando todas as questões acabarem, a fase chama onPhaseComplete(payload)
@@ -269,9 +286,22 @@ export class GameManager {
 
     /**
      * Volta para a landing page a partir de qualquer estado.
+     * Se a cena 'landing' não estiver registrada (modo dashboard),
+     * reinicia a phase1 diretamente em vez de travar.
      */
     goToLanding() {
-        this.switchTo('landing');
+        if (this.scenes.has('landing')) {
+            this.switchTo('landing');
+        } else {
+            // Sem landing registrada — aguarda novo CMD_START_GAME.
+            // Limpa a cena atual para parar o draw loop.
+            if (this.currentScene) {
+                this.currentScene.exit();
+                this.currentScene.cleanup();
+                this.currentScene = null;
+            }
+            console.log('[GameManager] Sessão encerrada. Aguardando CMD_START_GAME.');
+        }
     }
 
     // ──────────────────────────────────────────────────────────

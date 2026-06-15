@@ -1,74 +1,48 @@
-/**
- * Classe base para todas as cenas do jogo
- * Define a interface comum e comportamentos padrão
- */
+// Scene.js
+// ============================================================
+//  Classe base para todas as cenas do NeuroBeep.
+//  Define a interface comum e comportamentos padrão.
+// ============================================================
+
 export class Scene {
     constructor(name) {
-        this.name = name;
-        this.isActive = false;
-        this.elements = [];
+        this.name      = name;
+        this.isActive  = false;
+        this.elements  = [];
     }
 
-    /**
-     * Método chamado quando a cena é inicializada
-     */
+    /** Chamado uma vez quando a cena é inicializada. */
     setup() {
-        console.log(`Scene ${this.name} setup`);
+        console.log(`[Scene] setup: ${this.name}`);
     }
 
-    /**
-     * Método chamado a cada frame quando a cena está ativa
-     */
-    draw() {
-        // Implementação base vazia
-    }
+    /** Chamado a cada frame quando a cena está ativa. */
+    draw() {}
 
-    /**
-     * Ativa a cena
-     */
+    /** Ativa a cena. */
     enter() {
         this.isActive = true;
-        console.log(`Entering scene: ${this.name}`);
+        console.log(`[Scene] enter: ${this.name}`);
     }
 
-    /**
-     * Desativa a cena
-     */
+    /** Desativa a cena. */
     exit() {
         this.isActive = false;
-        console.log(`Exiting scene: ${this.name}`);
+        console.log(`[Scene] exit: ${this.name}`);
     }
 
-    /**
-     * Limpa recursos da cena
-     */
+    /** Limpa recursos criados pela cena (elementos DOM, listeners etc.). */
     cleanup() {
-        this.elements.forEach(element => {
-            if (element && element.remove) {
-                element.remove();
-            }
-        });
+        this.elements.forEach(el => { if (el?.remove) el.remove(); });
         this.elements = [];
     }
 
-    /**
-     * Lida com eventos de redimensionamento
-     */
-    handleResize() {
-        // Implementação padrão vazia
-    }
+    /** Chamado quando a janela é redimensionada. */
+    handleResize() {}
 
-    /**
-     * Lida com cliques do mouse
-     */
-    handleMousePressed() {
-        // Implementação padrão vazia
-    }
+    /** Chamado quando o mouse é pressionado. */
+    handleMousePressed() {}
 
-    /**
-     * Lida com teclas pressionadas
-     */
-    handleKeyPressed() {
-        // Implementação padrão vazia
-    }
+    /** Chamado quando uma tecla é pressionada. */
+    handleKeyPressed() {}
 }

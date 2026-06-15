@@ -6,16 +6,34 @@
   box-sizing: border-box;
 }
 
+/* ============================================================
+   Tokens Semanticos NeuroBeep — Temas Diurno / Foco
+   ============================================================ */
+
 :root {
+  /* Tokens do guia (fallback padrão = Diurno) */
+  --cor-fundo-hud:     #FFFFFF;
+  --cor-texto:         #00264F;
+  --cor-icone:         #00264F;
+  --cor-texto-icone:   #00264F;
+  --cor-botao-idle:    #407987;
+  --cor-botao-hover:   #80A6CF;
+  --cor-botao-pressed: #004C9E;
+
+  /* Design tokens fixos */
+  --borda-arredondada: 16px;
+  --sombra-suave: 0 4px 12px rgba(0,38,79,0.15);
+
+  /* Variaveis legadas (mantidas para compatibilidade) */
   --bg-deep: hsl(202 58% 12%);
   --bg-mid: hsl(198 63% 22%);
   --bg-surface: hsla(201 56% 16% / 0.78);
   --bg-surface-strong: hsla(201 60% 11% / 0.9);
-  --line-soft: hsla(192 71% 76% / 0.2);
-  --line-strong: hsla(193 95% 73% / 0.38);
-  --text-main: hsl(195 100% 97%);
-  --text-soft: hsla(194 72% 88% / 0.72);
-  --text-muted: hsla(194 48% 84% / 0.58);
+  --line-soft: hsla(202 58% 15% / 0.2);
+  --line-strong: hsla(202 58% 15% / 0.38);
+  --text-main: #00264F;
+  --text-soft: #00264F;
+  --text-muted: #00264F;
   --primary: #79dffc;
   --primary-strong: #31d2f6;
   --primary-ink: hsl(201 65% 12%);
@@ -38,9 +56,10 @@ body {
 
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  color: var(--text-main);
-  background: #0f172b;
+  color: var(--cor-texto);
+  background: var(--cor-fundo-hud);
   overflow: hidden;
+  transition: background-color 250ms ease-in-out, color 250ms ease-in-out;
 }
 
 button,
@@ -69,7 +88,6 @@ textarea {
   overflow: hidden;
 }
 
-
 .ambient-grid {
   position: absolute;
   inset: 0;
@@ -92,23 +110,6 @@ textarea {
   padding: 32px 24px;
   pointer-events: none;
 }
-
-/* .landing-shell {
-  width: min(720px, 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  text-align: center;
-  padding: 40px 32px 28px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-md);
-  background: #0f172b;
-  background: linear-gradient(180deg,#173D66 33%,  #1F3D87 83%);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(26px);
-  pointer-events: auto;
-} */
 
 .landing-hero {
   display: flex;
@@ -133,7 +134,7 @@ textarea {
   border-radius: 50%;
   background: radial-gradient(circle, hsla(193 95% 73% / 0.45), hsla(193 95% 73% / 0));
   filter: blur(16px);
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 3s ease-in-out infinite;
 }
 
 .logo {
@@ -162,7 +163,7 @@ textarea {
 .modal-cta {
   appearance: none;
   border: 1px solid transparent;
-  border-radius: 18px;
+  border-radius: var(--borda-arredondada);
   padding: 16px 24px;
   min-width: 210px;
   display: inline-flex;
@@ -177,29 +178,30 @@ textarea {
   transition:
     transform 300ms ease,
     box-shadow 300ms ease,
-    background 300ms ease,
-    border-color 300ms ease,
-    color 300ms ease;
+    background 250ms ease-in-out,
+    border-color 250ms ease-in-out,
+    color 250ms ease-in-out;
 }
 
 .btn-play,
 .modal-cta {
-  color: var(--primary-ink);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
-  box-shadow: 0 18px 40px hsla(193 95% 60% / 0.28);
+  color: var(--cor-texto);
+  background: var(--cor-botao-idle);
+  box-shadow: var(--sombra-suave);
 }
 
 .btn-info {
-  color: var(--text-main);
-  background: linear-gradient(180deg, hsla(202 36% 19% / 0.9), hsla(206 37% 13% / 0.92));
+  color: var(--cor-texto);
+  background: var(--cor-botao-idle);
   border-color: var(--line-strong);
-  box-shadow: inset 0 1px 0 hsla(0 0% 100% / 0.08);
+  box-shadow: var(--sombra-suave);
 }
 
 .btn-play:hover,
 .btn-info:hover,
 .modal-cta:hover {
   transform: translateY(-2px);
+  background: var(--cor-botao-hover);
 }
 
 .btn-play:hover,
@@ -208,16 +210,16 @@ textarea {
 }
 
 .btn-info:hover {
-  border-color: hsla(193 95% 73% / 0.6);
-  color: var(--primary);
+  border-color: var(--cor-botao-hover);
+  color: var(--cor-texto);
 }
 
 .btn-play:active,
 .btn-info:active,
 .modal-cta:active {
   transform: translateY(1px);
+  background: var(--cor-botao-pressed);
 }
-
 
 .footer {
   display: flex;
@@ -256,29 +258,32 @@ textarea {
   position: relative;
   width: min(620px, 100%);
   padding: 32px;
-  border-radius: 28px;
+  border-radius: var(--borda-arredondada);
   border: 1px solid var(--line-strong);
-  background:
-    linear-gradient(180deg, hsla(201 52% 17% / 0.96), hsla(205 52% 11% / 0.98));
+  background: var(--cor-fundo-hud);
+  color: var(--cor-texto);
   box-shadow: var(--shadow-soft), var(--shadow-glow);
+  transition: background 250ms ease-in-out, color 250ms ease-in-out;
 }
 
 .modal-close {
   position: absolute;
   top: 18px;
   right: 18px;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--line-soft);
   border-radius: 50%;
-  background: hsla(0 0% 100% / 0.08);
-  color: var(--text-main);
+  background: var(--cor-botao-idle);
+  color: var(--cor-texto);
   cursor: pointer;
-  transition: background 180ms ease, transform 180ms ease;
+  transition: background 180ms ease, transform 180ms ease, color 250ms ease-in-out;
+  display: grid;
+  place-items: center;
 }
 
 .modal-close:hover {
-  background: hsla(0 0% 100% / 0.14);
+  background: var(--cor-botao-hover);
   transform: rotate(90deg);
 }
 
@@ -288,8 +293,9 @@ textarea {
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--primary);
+  color: var(--cor-texto);
   margin-bottom: 8px;
+  opacity: 0.7;
 }
 
 .modal-card h2 {
@@ -297,12 +303,14 @@ textarea {
   font-size: clamp(1.9rem, 4vw, 2.5rem);
   line-height: 1.05;
   margin-bottom: 14px;
+  color: var(--cor-texto);
 }
 
 .modal-description {
-  color: var(--text-soft);
+  color: var(--cor-texto);
   line-height: 1.7;
   margin-bottom: 26px;
+  opacity: 0.72;
 }
 
 .modal-steps {
@@ -318,13 +326,15 @@ textarea {
   align-items: start;
   padding: 16px 18px;
   border: 1px solid var(--line-soft);
-  border-radius: 18px;
-  background: hsla(0 0% 100% / 0.05);
+  border-radius: var(--borda-arredondada);
+  background: var(--cor-botao-idle);
+  transition: background 250ms ease-in-out;
 }
 
 .modal-step p {
-  color: var(--text-soft);
+  color: var(--cor-texto);
   line-height: 1.6;
+  opacity: 0.72;
 }
 
 .modal-step-index {
@@ -333,8 +343,8 @@ textarea {
   border-radius: 999px;
   display: inline-grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
-  color: var(--primary-ink);
+  background: var(--cor-botao-hover);
+  color: var(--cor-texto);
   font-family: 'Outfit', sans-serif;
   font-weight: 900;
 }
@@ -343,36 +353,55 @@ textarea {
   width: 100%;
 }
 
+/* Botao de toggle de tema */
+.theme-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--borda-arredondada);
+  border: none;
+  background: var(--cor-botao-idle);
+  color: var(--cor-icone);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  transition: background 250ms ease-in-out, transform 150ms ease;
+  box-shadow: var(--sombra-suave);
+}
+
+.theme-toggle:hover {
+  background: var(--cor-botao-hover);
+  transform: scale(1.05);
+}
+
+.theme-toggle:active {
+  background: var(--cor-botao-pressed);
+  transform: scale(0.95);
+}
+
+.theme-toggle img {
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
 @keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
 }
 
 @keyframes pulse-glow {
-  0%,
-  100% {
-    transform: scale(0.96);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scale(1.04);
-    opacity: 1;
-  }
+  0%, 100% { transform: scale(0.96); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
 }
 
 @keyframes drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(0, -22px, 0);
-  }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -22px, 0); }
 }
 
 @media (max-width: 768px) {
@@ -383,7 +412,7 @@ textarea {
   .landing-shell {
     gap: 20px;
     padding: 30px 20px 24px;
-    border-radius: 28px;
+    border-radius: var(--borda-arredondada);
   }
 
   .buttons-container {
@@ -408,5 +437,12 @@ textarea {
 
   .modal-card {
     padding: 26px 20px 20px;
+  }
+
+  .theme-toggle {
+    top: 8px;
+    right: 8px;
+    width: 40px;
+    height: 40px;
   }
 }

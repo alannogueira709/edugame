@@ -1,6 +1,8 @@
 import { GameManager } from './GameManager.js';
 import { LandingPage } from './LandingPage.js';
 import { Phase1, Phase2, Phase3 } from './Phases.js';
+import { ThemeManager } from './ThemeManager.js';
+import { AudioNarrator } from './AudioNarrator.js';
 
 let gameManager;
 
@@ -26,11 +28,11 @@ async function tauriListen(eventName, handler) {
     } catch (e) {
         console.warn('[sketch] tauriListen falhou:', e);
     }
-    return () => {}; // unlisten no-op
+    return () => {};
 }
 
 // ============================================================================
-// RECEBENDO COMANDOS DO DASHBOARD (substituiu o BroadcastChannel)
+// RECEBENDO COMANDOS DO DASHBOARD
 // ============================================================================
 tauriListen('neurobeep_cmd', (event) => {
     const { type, payload } = event.payload ?? {};
@@ -64,8 +66,6 @@ tauriListen('neurobeep_cmd', (event) => {
 
 // ============================================================================
 // CAPTURA DE FRAMES PARA A MINIATURA DO DASHBOARD
-// Lógica aqui (e não no GamePhase) porque o draw() do sketch sempre roda,
-// independente da cena ativa — incluindo a landing e as fases de jogo.
 // ============================================================================
 let _frameCounter = 0;
 let _canvas = null;
@@ -74,7 +74,6 @@ function _enviarFrameMiniatura() {
     _frameCounter += 1;
     if (_frameCounter % 4 !== 0) return;
 
-    // LOG DE DIAGNÓSTICO: imprime a cada 60 frames (~1s) para não poluir o console
     const diagnostico = _frameCounter % 240 === 0;
 
     try {
@@ -107,6 +106,9 @@ function _enviarFrameMiniatura() {
 window.setup = function () {
     createCanvas(windowWidth, windowHeight).parent('p5-container');
 
+    ThemeManager.init();
+    AudioNarrator.init();
+
     gameManager = new GameManager();
 
     gameManager.addScene('landing', new LandingPage());
@@ -131,7 +133,6 @@ window.draw = function () {
         gameManager.update();
     }
 
-    // Espelha o canvas atual para a miniatura do dashboard (15fps via Tauri events)
     _enviarFrameMiniatura();
 };
 
@@ -140,7 +141,7 @@ window.draw = function () {
 // ============================================================================
 window.windowResized = function () {
     resizeCanvas(windowWidth, windowHeight);
-    _canvas = null; // reseta a ref do canvas para pegar o novo tamanho
+    _canvas = null;
     if (gameManager) gameManager.handleResize();
 };
 

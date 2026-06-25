@@ -14,11 +14,11 @@
   /* Tokens do guia (fallback padrão = Diurno) */
   --cor-fundo-hud:     #FFFFFF;
   --cor-texto:         #00264F;
-  --cor-icone:         #00264F;
+  --cor-icone:         #FFD500;
   --cor-texto-icone:   #00264F;
-  --cor-botao-idle:    #407987;
+  --cor-botao-idle:    #97D0FF;
   --cor-botao-hover:   #80A6CF;
-  --cor-botao-pressed: #004C9E;
+  --cor-botao-pressed: #6d9ccf;
 
   /* Design tokens fixos */
   --borda-arredondada: 16px;
@@ -47,6 +47,30 @@
   --radius-lg: 24px;
   --radius-md: 18px;
   --radius-sm: 14px;
+}
+
+/* Tema Diurno (claro) */
+html.theme-diurno,
+.theme-diurno {
+  --cor-fundo-hud:     #ffffff;
+  --cor-texto:         #000000;
+  --cor-icone:         #FFD500;
+  --cor-texto-icone:   #00264F;
+  --cor-botao-idle:    #97D0FF;
+  --cor-botao-hover:   #80A6CF;
+  --cor-botao-pressed: #6d9ccf;
+}
+
+/* Tema Foco (escuro) */
+html.theme-foco,
+.theme-foco {
+  --cor-fundo-hud:     #001225;
+  --cor-texto:         #FFFFFF;
+  --cor-icone:         #FFD500;
+  --cor-texto-icone:   #FFFFFF;
+  --cor-botao-idle:    #002B5A;
+  --cor-botao-hover:   #004C9E;
+  --cor-botao-pressed: #C0D3E7;
 }
 
 html,

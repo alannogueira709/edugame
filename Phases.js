@@ -44,6 +44,9 @@ export class Phase1 extends GamePhase {
 
     reproduzirMidia(tipo, textoFallback) {
         super.reproduzirMidia(tipo, textoFallback);
+        // Conecte vídeos reais aqui quando tiver os assets:
+        // const src = { reforcao_positivo: 'videos/parabens.mp4', ... }[tipo];
+        // if (src) { videoPlayer.src = src; videoPlayer.play(); }
     }
 }
 
@@ -81,6 +84,19 @@ export class Phase3 extends GamePhase {
     }
 
     initializePhase() {
+        // TODO: adicione questões aqui usando createQuestion().
+        // Enquanto o array estiver vazio, um aviso é exibido no
+        // console e a fase encerra imediatamente sem travar o jogo.
+        //
+        // Exemplo mínimo:
+        // this.questoes = [
+        //     createQuestion({
+        //         id: 'diag_01', bncc: 'EF01LP01',
+        //         enunciado: 'Qual é a vogal?',
+        //         alternativas: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+        //         correta: 'a',
+        //     }),
+        // ];
         this.questoes = [];
 
         loadImage(

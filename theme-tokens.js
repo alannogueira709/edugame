@@ -5,8 +5,8 @@
  */
 
 export const TOKENS = {
-    COR_FUNDO_HUD:        { diurno: '#ffffff', foco: '#001225' },
-    COR_TEXTO:            { diurno: '#000000', foco: '#FFFFFF' }, //#0003283
+    COR_FUNDO_HUD:        { diurno: '#97D0FF', foco: '#002B5A' },
+    COR_TEXTO:            { diurno: '#000000', foco: '#FFFFFF' },
     COR_ICONE:            { diurno: '#FFD500', foco: '#FFD500' },
     COR_TEXTO_ICONE:      { diurno: '#00264F', foco: '#FFFFFF' },
     COR_BOTAO_IDLE:        { diurno: '#97D0FF', foco: '#002B5A' },

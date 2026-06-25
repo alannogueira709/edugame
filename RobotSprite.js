@@ -196,8 +196,8 @@ export class RobotSprite {
      * @param {number}   y
      * @param {number}   w
      * @param {number}   h
-     * @param {string}   [feedbackMsg]   - LEGADO: removido da UI
-     * @param {number[]} [feedbackColor] - LEGADO: removido da UI
+     * @param {string}   [feedbackMsg]   - Texto da speech bubble (vazio = oculta)
+     * @param {number[]} [feedbackColor] - Cor RGB da speech bubble
      */
     draw(x, y, w, h, feedbackMsg = '', feedbackColor = [255, 255, 255]) {
         // Fundo levemente escurecido atrás do sprite
@@ -207,7 +207,7 @@ export class RobotSprite {
         rect(x - 8, y - 8, w + 16, h + 16, 14);
         pop();
 
-        // Speech bubble removido — texto do robo entregue via audio
+        if (feedbackMsg) this._drawSpeechBubble(x, y, w, feedbackMsg, feedbackColor);
 
         if (!this._current?.image) return;
         this._updateAnimation();
@@ -292,8 +292,53 @@ export class RobotSprite {
     }
 
     // ──────────────────────────────────────────────────────────
-    //  PRIVADOS — speech bubble REMOVIDO (texto via audio)
+    //  PRIVADOS — speech bubble
     // ──────────────────────────────────────────────────────────
+
+    _drawSpeechBubble(spriteX, spriteY, spriteW, message, color) {
+        const HUD_H   = 76; // altura do HUD (deve bater com LAYOUT.HUD_H)
+        const minY    = HUD_H + 8;
+        const bubbleW = Math.min(Math.max(190, spriteW + 40), width - spriteX - 6);
+        const lines   = this._wrapText(message, bubbleW - 30);
+        const bubbleH = Math.max(68, 34 + lines.length * 18);
+        const bx      = spriteX - 6;
+        const by      = spriteY - bubbleH - 18;
+        if (by < minY) return;
+
+        push();
+        rectMode(CORNER);
+        stroke(255, 255, 255, 120);
+        strokeWeight(1.4);
+        fill(color[0], color[1], color[2], 228);
+        rect(bx, by, bubbleW, bubbleH, 18);
+
+        noStroke();
+        triangle(
+            bx + bubbleW * 0.36, by + bubbleH,
+            bx + bubbleW * 0.36 + 16, by + bubbleH,
+            bx + bubbleW * 0.36 + 8,  by + bubbleH + 12
+        );
+
+        fill(19, 24, 29);
+        textAlign(CENTER, CENTER);
+        textStyle(BOLD);
+        textSize(13);
+        lines.forEach((line, i) => text(line, bx + bubbleW / 2, by + 22 + i * 18));
+        pop();
+    }
+
+    _wrapText(txt, maxWidth) {
+        const words = String(txt ?? '').split(' ');
+        const lines = [];
+        let current = '';
+        for (const word of words) {
+            const test = current ? `${current} ${word}` : word;
+            if (test.length * 7 > maxWidth && current) { lines.push(current); current = word; }
+            else { current = test; }
+        }
+        if (current) lines.push(current);
+        return lines.slice(0, 3);
+    }
 }
 
 /**

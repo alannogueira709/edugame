@@ -30,8 +30,6 @@ import { GameUI }       from './GameUI.js';
 import { RobotSprite }  from './RobotSprite.js';
 import { QuestionLog, STATUS_RESPOSTA, PHASE_STATE } from './QuestionLog.js';
 import { generateLinearWordLayout, selectRandomElement } from './utils.js';
-import { AudioNarrator } from './AudioNarrator.js';
-import { ThemeManager } from './ThemeManager.js';
 
 // ── Constantes internas ─────────────────────────────────────
 const TIMING = {
@@ -61,7 +59,7 @@ const ESTADOS_ATIVOS = new Set([
 
 // ── Mapeamento de feedback para mídia ───────────────────────
 const FEEDBACK_MIDIA = {
-    [STATUS_RESPOSTA.OMISSAO_TIMEOUT]: ['omissao_timeout',     'O robô está esperando, vamos tentar?'],
+    [STATUS_RESPOSTA.OMISSAO_TIMEOUT]: ['engajamento',         'O robô está esperando, vamos tentar?'],
     [STATUS_RESPOSTA.ERRO_EXECUCAO]:   ['alerta_execucao',     'Cuidado, precisa parar o robô na hora certa!'],
     [STATUS_RESPOSTA.ERRO_ESPACIAL]:   ['orientacao_espacial', 'Você parou no meio do caminho!'],
     [STATUS_RESPOSTA.ERRO_COGNITIVO]:  ['scaffolding',         'Não é essa. Preste atenção na dica...'],
@@ -418,17 +416,7 @@ export class GamePhase extends Scene {
         this.logAtual.finalizarJogada(status, this.logAtual.resolucao_final.zona_parada, this.logAtual.precisao_odometrica.posicao_final_passos, sabia);
         this.logAtual.marcarInicioFeedback();
         this._salvarLog();
-        if (sabia) {
-            AudioNarrator.playCompreensaoConsolidada(this.phaseNumber);
-            this.feedbackMessage = 'Parabéns!';
-            this.feedbackColor   = this.robot.colorForTipo('reforcao_positivo');
-            this.robot.playByTipo('reforcao_positivo');
-        } else {
-            AudioNarrator.playResolucaoErroReincidente(this.phaseNumber);
-            this.feedbackMessage = 'Deixa eu te explicar...';
-            this.feedbackColor   = this.robot.colorForTipo('explicacao_conteudo');
-            this.robot.playByTipo('explicacao_conteudo');
-        }
+        this.reproduzirMidia(sabia ? 'reforcao_positivo' : 'explicacao_conteudo', sabia ? 'Parabéns!' : 'Deixa eu te explicar...');
         this.addScore(sabia ? 150 : 100);
         this._iniciarEncerramento();
     }
@@ -511,7 +499,7 @@ export class GamePhase extends Scene {
         this._salvarLog();
 
         const [tipo, texto] = statusFinal === STATUS_RESPOSTA.ERRO_COGNITIVO
-            ? ['resolucao', 'Vamos tentar de outro jeito...']
+            ? ['erro_cognitivo_reincidente', 'Vamos tentar de outro jeito.']
             : ['resolucao', 'Deixa eu te explicar qual era a resposta certa...'];
         this.reproduzirMidia(tipo, texto);
         
@@ -720,15 +708,29 @@ export class GamePhase extends Scene {
     //  CANVAS — cenário e player fallback
     // ──────────────────────────────────────────────────────────
 
+    _hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 10, g: 22, b: 36 };
+    }
+
+    _getThemeBackgroundColor() {
+        const val = getComputedStyle(document.documentElement)
+            .getPropertyValue('--cor-fundo-hud').trim();
+        return this._hexToRgb(val);
+    }
+
     _drawCenario() {
-        const bg = this._getThemeColor('--cor-fundo-hud');
-        background(bg[0], bg[1], bg[2]);
+        const bg = this._getThemeBackgroundColor();
+        background(bg.r, bg.g, bg.b);
         const laneY = this._getPlayerLaneY() + this.player.h * 0.48;
-        const lane = this._getThemeColor('--cor-texto-icone');
         push();
         noStroke();
-        fill(lane[0], lane[1], lane[2], 12);  rect(20, laneY - 10, width - 40, 50, 36);
-        fill(lane[0], lane[1], lane[2], 8);   rect(44, laneY + 5,  width - 88, 21, 999);
+        fill(255, 255, 255, 8);  rect(20, laneY - 18, width - 40, 36, 18);
+        fill(6, 20, 32, 90);     rect(44, laneY - 7,  width - 88, 14, 999);
         pop();
     }
 
@@ -738,25 +740,23 @@ export class GamePhase extends Scene {
 
         if (this.playerSprite) { image(this.playerSprite, px, py, pw, ph); return; }
 
-        // Fallback desenhado por código com cores do tema
+        // Fallback desenhado por código
         const moving = this.movementControl.isMoving;
-        const texto = this._getThemeColor('--cor-texto-icone');
-        const botao = this._getThemeColor('--cor-botao-idle');
         push();
         rectMode(CORNER);
-        noStroke(); fill(texto[0], texto[1], texto[2], 30); rect(px + 4, py + ph * 0.75 + 6, pw, ph * 0.28, 8);
-        stroke(texto[0], texto[1], texto[2], 30); strokeWeight(1.5);
-        fill(moving ? color(botao[0], botao[1], botao[2]) : color(texto[0], texto[1], texto[2]));
+        noStroke(); fill(0, 0, 0, 60); rect(px + 4, py + ph * 0.75 + 6, pw, ph * 0.28, 8);
+        stroke(255, 255, 255, 30); strokeWeight(1.5);
+        fill(moving ? color(77, 152, 226) : color(34, 197, 94));
         rect(px, py + ph * 0.25, pw, ph * 0.5, 10);
-        noStroke(); fill(texto[0], texto[1], texto[2], 12); rect(px + 4, py + ph * 0.27, pw - 8, ph * 0.15, 6);
-        fill(texto[0], texto[1], texto[2], 160);
+        noStroke(); fill(255, 255, 255, 25); rect(px + 4, py + ph * 0.27, pw - 8, ph * 0.15, 6);
+        fill(20, 20, 20);
         const r = pw * 0.18, rY = py + ph * 0.72;
         ellipse(px + pw * 0.22, rY, r, r); ellipse(px + pw * 0.78, rY, r, r);
-        fill(texto[0], texto[1], texto[2], 80);
+        fill(80, 80, 80);
         ellipse(px + pw * 0.22, rY, r * 0.5, r * 0.5); ellipse(px + pw * 0.78, rY, r * 0.5, r * 0.5);
-        fill(moving ? color(botao[0], botao[1], botao[2], 180) : color(texto[0], texto[1], texto[2], 220));
+        fill(moving ? color(77, 152, 226, 180) : color(34, 197, 94, 220));
         ellipse(px + pw / 2, py + ph * 0.18, pw * 0.22, pw * 0.22);
-        fill(texto[0], texto[1], texto[2], moving ? 80 : 200);
+        fill(255, 255, 255, moving ? 80 : 200);
         ellipse(px + pw / 2, py + ph * 0.14, pw * 0.08, pw * 0.08);
         pop();
     }
@@ -782,7 +782,7 @@ export class GamePhase extends Scene {
     // ──────────────────────────────────────────────────────────
 
     /**
-     * @override Narra o enunciado via audio pre-gravado.
+     * @override Conecte um TTS real aqui na subclasse.
      * @param {import('./GameBridge.js').Questao} questao
      */
     reproduzirAudioQuestao(questao) {
@@ -790,7 +790,7 @@ export class GamePhase extends Scene {
     }
 
     /**
-     * @override Reproduz feedback audio + animacao do robo.
+     * @override Conecte vídeos/áudios reais aqui na subclasse.
      * @param {string} tipo
      * @param {string} textoFallback
      */
@@ -799,7 +799,6 @@ export class GamePhase extends Scene {
         this.feedbackMessage = textoFallback;
         this.feedbackColor   = this.robot.colorForTipo(tipo);
         this.robot.playByTipo(tipo);
-        AudioNarrator.playFeedback(tipo, this.phaseNumber);
     }
 
     // ──────────────────────────────────────────────────────────
@@ -885,17 +884,6 @@ export class GamePhase extends Scene {
         const h = Math.min(spriteW * 1.15, dispH - 8);
         const w = h / 1.15;
         return { x: width - w - LAYOUT.SPRITE_GAP, y: zonaTopoY + (dispH - h) / 2, w, h };
-    }
-
-    _getThemeColor(varName) {
-        const val = getComputedStyle(document.documentElement)
-            .getPropertyValue(varName).trim();
-        const hex = val.replace('#', '');
-        return [
-            parseInt(hex.slice(0,2), 16),
-            parseInt(hex.slice(2,4), 16),
-            parseInt(hex.slice(4,6), 16),
-        ];
     }
 
     _getLayoutConstraints() {

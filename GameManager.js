@@ -1,7 +1,5 @@
 // GameManager.js
 
-import { AudioNarrator } from './AudioNarrator.js';
-
 /**
  * GameManager — Orquestrador central do NeuroBeep
  *
@@ -131,8 +129,6 @@ export class GameManager {
         this.sessionState.totalScore  = 0;
         this.sessionState.payloadsPedagogicos = [];
 
-        AudioNarrator.playBoasVindas();
-
         // Compatibilidade: se as cenas de fluxo não estiverem registradas,
         // começa direto na phase1.
         if (!hasFlowScenes) {
@@ -196,8 +192,6 @@ export class GameManager {
         // Injeta as questões do roteiro diretamente na fase
         fase.questoes = roteiro.questoes ?? [];
         this.sessionState.currentPhase = Number(faseKey.replace('phase', '')) || 1;
-
-        AudioNarrator.playFase(this.sessionState.currentPhase);
 
         this.switchTo(faseKey, {
             // Quando todas as questões acabarem, a fase chama onPhaseComplete(payload)

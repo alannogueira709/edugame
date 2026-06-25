@@ -1,5 +1,4 @@
 import { GameManager } from './GameManager.js';
-import { LandingPage } from './LandingPage.js';
 import { Phase1, Phase2, Phase3 } from './Phases.js';
 import { ThemeManager } from './ThemeManager.js';
 import { AudioNarrator } from './AudioNarrator.js';
@@ -28,17 +27,24 @@ async function tauriListen(eventName, handler) {
     } catch (e) {
         console.warn('[sketch] tauriListen falhou:', e);
     }
-    return () => {};
+    return () => {}; // unlisten no-op
 }
 
 // ============================================================================
+// RECEBENDO COMANDOS DO DASHBOARD (substituiu o BroadcastChannel)
+// ============================================================================
+// ============================================================================
 // RECEBENDO COMANDOS DO DASHBOARD
 // ============================================================================
+// Comandos de ciclo de vida do jogo — exclusivos do sketch.js.
+// Os comandos de fase (PROXIMA_QUESTAO, SEGUNDA_CHANCE, etc.) são roteados
+// diretamente pelo GameBridge.onCommand registrado em GamePhase._registrarHandlersBridge,
+// evitando dupla execução e mantendo o guard de estado centralizado.
 tauriListen('neurobeep_cmd', (event) => {
-    const { type, payload } = event.payload ?? {};
-    console.log(`[sketch] Comando recebido: ${type}`, payload);
+    const cmdType = event.payload?.type || event.payload?.command;
+    console.log(`[sketch] Comando recebido: ${cmdType}`);
 
-    switch (type) {
+    switch (cmdType) {
         case 'CMD_START_GAME': {
             const overlay = document.querySelector('.content-overlay');
             if (overlay) overlay.style.display = 'none';
@@ -49,56 +55,15 @@ tauriListen('neurobeep_cmd', (event) => {
             break;
         }
         case 'CMD_PAUSE_GAME':
-            if (gameManager) gameManager.isPaused = true;
+            if (gameManager?.currentScene) gameManager.currentScene.pause?.();
             break;
         case 'CMD_RESUME_GAME':
-            if (gameManager) gameManager.isPaused = false;
+            if (gameManager?.currentScene) gameManager.currentScene.resume?.();
             break;
-        case 'CMD_NEXT_QUESTION': {
-            const currentScene = gameManager?.currentScene;
-            if (currentScene && typeof currentScene._avancarQuestao === 'function') {
-                currentScene._avancarQuestao(payload?.questionIndex);
-            }
-            break;
-        }
     }
 });
 
-// ============================================================================
-// CAPTURA DE FRAMES PARA A MINIATURA DO DASHBOARD
-// ============================================================================
-let _frameCounter = 0;
-let _canvas = null;
 
-function _enviarFrameMiniatura() {
-    _frameCounter += 1;
-    if (_frameCounter % 4 !== 0) return;
-
-    const diagnostico = _frameCounter % 240 === 0;
-
-    try {
-        if (!_canvas) _canvas = document.querySelector('canvas');
-
-        if (diagnostico) {
-            console.log('[sketch] _enviarFrameMiniatura tick:', {
-                canvas: !!_canvas,
-                tauriDisponivel: !!window.__TAURI__?.event?.emit,
-                frameCounter: _frameCounter,
-            });
-        }
-
-        if (!_canvas) return;
-
-        const frame = _canvas.toDataURL('image/jpeg', 0.5);
-        tauriEmit('neurobeep_frame', { frame });
-
-        if (diagnostico) {
-            console.log('[sketch] Frame emitido, tamanho base64:', frame.length, 'chars');
-        }
-    } catch (err) {
-        console.warn('[sketch] _enviarFrameMiniatura erro:', err);
-    }
-}
 
 // ============================================================================
 // SETUP p5.js
@@ -106,22 +71,24 @@ function _enviarFrameMiniatura() {
 window.setup = function () {
     createCanvas(windowWidth, windowHeight).parent('p5-container');
 
+    // Inicializa infraestrutura de tema e audio
     ThemeManager.init();
     AudioNarrator.init();
 
+    // Esconde o overlay da landing page imediatamente —
+    // o jogo não usa mais a tela de início interna.
+    const overlay = document.querySelector('.content-overlay');
+    if (overlay) overlay.style.display = 'none';
+
     gameManager = new GameManager();
 
-    gameManager.addScene('landing', new LandingPage());
     gameManager.addScene('phase1', new Phase1());
     gameManager.addScene('phase2', new Phase2());
     gameManager.addScene('phase3', new Phase3());
 
-    const landing = gameManager.scenes.get('landing');
-    if (landing) {
-        landing.onPlayClicked = () => gameManager.startGame();
-    }
+    // Inicia direto na fase 1 sem depender do dashboard Tauri
+    gameManager.startGame();
 
-    gameManager.init();
     window.gameManager = gameManager;
 };
 
@@ -132,8 +99,6 @@ window.draw = function () {
     if (gameManager) {
         gameManager.update();
     }
-
-    _enviarFrameMiniatura();
 };
 
 // ============================================================================
@@ -141,7 +106,6 @@ window.draw = function () {
 // ============================================================================
 window.windowResized = function () {
     resizeCanvas(windowWidth, windowHeight);
-    _canvas = null;
     if (gameManager) gameManager.handleResize();
 };
 

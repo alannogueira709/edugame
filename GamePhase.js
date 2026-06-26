@@ -30,6 +30,8 @@ import { GameUI }       from './GameUI.js';
 import { RobotSprite }  from './RobotSprite.js';
 import { QuestionLog, STATUS_RESPOSTA, PHASE_STATE } from './QuestionLog.js';
 import { generateLinearWordLayout, selectRandomElement } from './utils.js';
+import { AudioNarrator } from './AudioNarrator.js';
+import { ThemeManager } from './ThemeManager.js';
 
 // ── Constantes internas ─────────────────────────────────────
 const TIMING = {
@@ -44,9 +46,9 @@ const TIMING = {
 
 const LAYOUT = {
     HUD_H:         76,
-    RODAPE_H:      52,
-    SPRITE_W_MAX: 180,
-    SPRITE_W_FRAC: 0.14,
+    RODAPE_H:      16,
+    SPRITE_W_MAX: 240,
+    SPRITE_W_FRAC: 0.22,
     SPRITE_GAP:    16,
 };
 
@@ -155,6 +157,7 @@ export class GamePhase extends Scene {
 
     setup() {
         super.setup();
+        AudioNarrator.setFase(this.phaseNumber);
         this.ui.mount();
         this.robot.setup();
         this._instalarControlesGlobais();
@@ -306,9 +309,9 @@ export class GamePhase extends Scene {
 
         this._selecionarPalavraAtual();
         this._atualizarLayoutPalavra();
-        this.ui.updateChallengeCard(this.questaoAtual.enunciado, this.currentWord);
-
         const gabarito = this.questaoAtual.alternativas?.find(a => a.id === this.questaoAtual.correta);
+        const focusIndex = this.currentWord.indexOf(gabarito?.label ?? '');
+        this.ui.updateChallengeCard(this.questaoAtual.enunciado, this.currentWord, focusIndex);
         this.logAtual = new QuestionLog(
             window.NEUROBEEP_SESSION_ID || 'SESSAO_TESTE',
             this.phaseNumber, this.questaoAtual.id, this.questaoAtual.bncc, gabarito?.id ?? null
@@ -650,14 +653,16 @@ export class GamePhase extends Scene {
     _gerarZonas() {
         if (!this.questaoAtual?.alternativas) return;
         const alts = this.questaoAtual.alternativas;
-        const zH   = 68;
-        const zW   = Math.min(170, (width - 48) / alts.length - 12);
-        const gap  = Math.max(10, (width - 32 - alts.length * zW) / (alts.length + 1));
-        const zY   = height - LAYOUT.RODAPE_H - zH - 10;
+        const gap  = 12;
+        const availableW = width * 0.7;
+        const margin     = (width - availableW) / 2;
+        const zW   = (availableW - (alts.length - 1) * gap) / alts.length;
+        const zH   = Math.min(zW, 110);
+        const zY   = height - zH - 16;
 
         this.zonas = alts.map((alt, i) => ({
             id: alt.id, label: alt.label,
-            x: gap + i * (zW + gap), y: zY, w: zW, h: zH,
+            x: margin + i * (zW + gap), y: zY, w: zW, h: zH,
             isCorrect: alt.id === this.questaoAtual.correta,
         }));
 
@@ -672,11 +677,15 @@ export class GamePhase extends Scene {
     }
 
     _gerarZonasCompreensao() {
-        const zW = 180, zH = 80, gap = 60;
-        const cX = width / 2, cY = height / 2 + 60;
+        const gap  = 20;
+        const availableW = width * 0.6;
+        const zW = Math.min((availableW - gap) / 2, 110);
+        const zH = zW;
+        const mX = (width - availableW) / 2;
+        const zY = height - zH - 16;
         this.zonasCompreensao = [
-            { id: 'sabia',  label: '💡 Eu sabia!',  x: cX - zW - gap / 2, y: cY, w: zW, h: zH },
-            { id: 'chutei', label: '🎲 Eu chutei!', x: cX + gap / 2,      y: cY, w: zW, h: zH },
+            { id: 'sabia',  label: '💡 Eu sabia!',  x: mX,                y: zY, w: zW, h: zH },
+            { id: 'chutei', label: '🎲 Eu chutei!', x: mX + zW + gap,    y: zY, w: zW, h: zH },
         ];
     }
 
@@ -708,29 +717,15 @@ export class GamePhase extends Scene {
     //  CANVAS — cenário e player fallback
     // ──────────────────────────────────────────────────────────
 
-    _hexToRgb(hex) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : { r: 10, g: 22, b: 36 };
-    }
-
-    _getThemeBackgroundColor() {
-        const val = getComputedStyle(document.documentElement)
-            .getPropertyValue('--cor-fundo-hud').trim();
-        return this._hexToRgb(val);
-    }
-
     _drawCenario() {
-        const bg = this._getThemeBackgroundColor();
-        background(bg.r, bg.g, bg.b);
-        const laneY = this._getPlayerLaneY() + this.player.h * 0.48;
+        const bg = this._getThemeColor('--cor-fundo-hud');
+        background(bg[0], bg[1], bg[2]);
+        const laneY = this._getPlayerLaneY() + this.player.h * 0.62;
+        const lane = this._getThemeColor('--cor-texto');
         push();
         noStroke();
-        fill(255, 255, 255, 8);  rect(20, laneY - 18, width - 40, 36, 18);
-        fill(6, 20, 32, 90);     rect(44, laneY - 7,  width - 88, 14, 999);
+        fill(lane[0], lane[1], lane[2], 12);  rect(30, laneY - 18, width - 70, 36, 18);
+        fill(lane[0], lane[1], lane[2], 8);   rect(48, laneY - 7,  width - 104, 14, 999);
         pop();
     }
 
@@ -740,23 +735,25 @@ export class GamePhase extends Scene {
 
         if (this.playerSprite) { image(this.playerSprite, px, py, pw, ph); return; }
 
-        // Fallback desenhado por código
+        // Fallback desenhado por codigo com cores do tema
         const moving = this.movementControl.isMoving;
+        const texto = this._getThemeColor('--cor-texto');
+        const botao = this._getThemeColor('--cor-botao-idle');
         push();
         rectMode(CORNER);
-        noStroke(); fill(0, 0, 0, 60); rect(px + 4, py + ph * 0.75 + 6, pw, ph * 0.28, 8);
-        stroke(255, 255, 255, 30); strokeWeight(1.5);
-        fill(moving ? color(77, 152, 226) : color(34, 197, 94));
+        noStroke(); fill(texto[0], texto[1], texto[2], 30); rect(px + 4, py + ph * 0.75 + 6, pw, ph * 0.28, 8);
+        stroke(texto[0], texto[1], texto[2], 30); strokeWeight(1.5);
+        fill(moving ? color(botao[0], botao[1], botao[2]) : color(texto[0], texto[1], texto[2]));
         rect(px, py + ph * 0.25, pw, ph * 0.5, 10);
-        noStroke(); fill(255, 255, 255, 25); rect(px + 4, py + ph * 0.27, pw - 8, ph * 0.15, 6);
-        fill(20, 20, 20);
+        noStroke(); fill(texto[0], texto[1], texto[2], 12); rect(px + 4, py + ph * 0.27, pw - 8, ph * 0.15, 6);
+        fill(texto[0], texto[1], texto[2], 160);
         const r = pw * 0.18, rY = py + ph * 0.72;
         ellipse(px + pw * 0.22, rY, r, r); ellipse(px + pw * 0.78, rY, r, r);
-        fill(80, 80, 80);
+        fill(texto[0], texto[1], texto[2], 80);
         ellipse(px + pw * 0.22, rY, r * 0.5, r * 0.5); ellipse(px + pw * 0.78, rY, r * 0.5, r * 0.5);
-        fill(moving ? color(77, 152, 226, 180) : color(34, 197, 94, 220));
+        fill(moving ? color(botao[0], botao[1], botao[2], 180) : color(texto[0], texto[1], texto[2], 220));
         ellipse(px + pw / 2, py + ph * 0.18, pw * 0.22, pw * 0.22);
-        fill(255, 255, 255, moving ? 80 : 200);
+        fill(texto[0], texto[1], texto[2], moving ? 80 : 200);
         ellipse(px + pw / 2, py + ph * 0.14, pw * 0.08, pw * 0.08);
         pop();
     }
@@ -786,19 +783,21 @@ export class GamePhase extends Scene {
      * @param {import('./GameBridge.js').Questao} questao
      */
     reproduzirAudioQuestao(questao) {
-        console.log(`[Mídia] Enunciado: "${questao?.enunciado}"`);
+        console.log(`[Midia] Enunciado: "${questao?.enunciado}"`);
+        AudioNarrator.playEnunciado(questao?.id);
     }
 
     /**
-     * @override Conecte vídeos/áudios reais aqui na subclasse.
+     * @override Reproduz feedback audio + animacao do robo.
      * @param {string} tipo
      * @param {string} textoFallback
      */
     reproduzirMidia(tipo, textoFallback) {
-        console.log(`[Mídia] tipo="${tipo}" | texto="${textoFallback}"`);
+        console.log(`[Midia] tipo="${tipo}" | texto="${textoFallback}"`);
         this.feedbackMessage = textoFallback;
         this.feedbackColor   = this.robot.colorForTipo(tipo);
         this.robot.playByTipo(tipo);
+        AudioNarrator.playFeedback(tipo);
     }
 
     // ──────────────────────────────────────────────────────────
@@ -879,15 +878,27 @@ export class GamePhase extends Scene {
 
     _getSpriteZone() {
         const spriteW = Math.min(LAYOUT.SPRITE_W_MAX, width * LAYOUT.SPRITE_W_FRAC);
-        const zonaTopoY = LAYOUT.HUD_H + 4;
-        const dispH = height - LAYOUT.RODAPE_H - zonaTopoY;
-        const h = Math.min(spriteW * 1.15, dispH - 8);
-        const w = h / 1.15;
-        return { x: width - w - LAYOUT.SPRITE_GAP, y: zonaTopoY + (dispH - h) / 2, w, h };
+        const zonaTopoY = LAYOUT.HUD_H + 8;
+        const dispH = this._getPlayerLaneY() - zonaTopoY - 16;
+        const h = Math.min(spriteW * 1.05, dispH - 8);
+        const w = h / 0.9;
+        const x = width * 0.72;
+        return { x, y: zonaTopoY + (dispH - h) / 2, w, h };
     }
 
     _getLayoutConstraints() {
         return { topY: LAYOUT.HUD_H + 8, botY: height - LAYOUT.RODAPE_H - 8 };
+    }
+
+    _getThemeColor(varName) {
+        const val = getComputedStyle(document.documentElement)
+            .getPropertyValue(varName).trim();
+        const hex = val.replace('#', '');
+        return [
+            parseInt(hex.slice(0,2), 16),
+            parseInt(hex.slice(2,4), 16),
+            parseInt(hex.slice(4,6), 16),
+        ];
     }
 
     // ──────────────────────────────────────────────────────────

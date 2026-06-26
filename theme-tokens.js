@@ -5,11 +5,11 @@
  */
 
 export const TOKENS = {
-    COR_FUNDO_HUD:        { diurno: '#97D0FF', foco: '#002B5A' },
+    COR_FUNDO_HUD:        { diurno: '#FFFFFF', foco: '#002B5A' },
     COR_TEXTO:            { diurno: '#000000', foco: '#FFFFFF' },
     COR_ICONE:            { diurno: '#FFD500', foco: '#FFD500' },
     COR_TEXTO_ICONE:      { diurno: '#00264F', foco: '#FFFFFF' },
-    COR_BOTAO_IDLE:        { diurno: '#97D0FF', foco: '#002B5A' },
+    COR_BOTAO_IDLE:        { diurno: '#97d0ff7b', foco: '#123256' },
     COR_BOTAO_HOVER:       { diurno: '#80A6CF', foco: '#004C9E' },
     COR_BOTAO_PRESSED:     { diurno: '#6d9ccf', foco: '#C0D3E7' },
 };

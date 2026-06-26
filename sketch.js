@@ -33,9 +33,6 @@ async function tauriListen(eventName, handler) {
 // ============================================================================
 // RECEBENDO COMANDOS DO DASHBOARD (substituiu o BroadcastChannel)
 // ============================================================================
-// ============================================================================
-// RECEBENDO COMANDOS DO DASHBOARD
-// ============================================================================
 // Comandos de ciclo de vida do jogo — exclusivos do sketch.js.
 // Os comandos de fase (PROXIMA_QUESTAO, SEGUNDA_CHANCE, etc.) são roteados
 // diretamente pelo GameBridge.onCommand registrado em GamePhase._registrarHandlersBridge,
@@ -132,14 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const infoButton = document.querySelector('.btn-info');
     if (infoButton) {
         infoButton.addEventListener('click', () => {
-            alert(
-                'Instruções:\n\n' +
-                '- ESPAÇO = mover/parar o robô\n' +
-                '- ← → = mudar direção\n' +
-                '- B = conectar ESP32 Bluetooth\n' +
-                '- X = desconectar Bluetooth\n' +
-                '- ESC = pausar'
-            );
+            alert('ESPACO = mover/parar\n← → = direcao\nESC = pausar');
         });
     }
 });

@@ -1,39 +1,20 @@
 // GameUI.js
 // ============================================================
-//  Gerencia toda a interface HTML da fase de jogo.
+//  Gerencia toda a interface HTML da fase de jogo — versao acessivel.
 //
-//  Responsabilidades:
-//    • Criar e remover os elementos DOM (HUD, challenge card,
-//      zonas de resposta, modal de resultado)
-//    • Atualizar valores a cada frame via update()
-//    • Exibir/esconder o modal de resultado com confetti
+//  Mudancas v2:
+//    • HUD compacto: uma linha unica (score + lives + toggle tema)
+//    • Texto nao essencial removido — substituido por icones SVG
+//    • Enunciado removido da UI (entregue via audio)
+//    • Modal simplificado (sem distancias detalhadas)
+//    • Zonas ampliadas (88px altura, touch target >= 44px)
+//    • Transicoes de cor 250ms para todos os elementos
 //
-//  NÃO conhece p5.js, lógica de jogo ou comunicação com hardware.
-//  Recebe dados simples (strings, números, booleanos) e reflete no DOM.
-//
-//  USO:
-//    const ui = new GameUI(phaseNumber);
-//    ui.mount();
-//    // no draw():
-//    ui.update({ score, lives, questaoIndex, totalQuestoes, state, timerIncentivo, showTimer });
-//    ui.updateChallengeCard(enunciado, word);
-//    ui.updateZones(alternativas, state, correctaId);
-//    ui.showResultModal(isCorrect, { ... });
-//    // no cleanup():
-//    ui.unmount();
+//  NAO conhece p5.js, logica de jogo ou comunicacao com hardware.
 // ============================================================
 
 import { PHASE_STATE } from './QuestionLog.js';
 import { ThemeManager, EVENT_NAME } from './ThemeManager.js';
-
-// Mensagens do status bar por estado
-const STATUS_MSGS = {};
-
-const STATUS_ATIVOS = new Set([
-    PHASE_STATE.ESPERA_ATIVA,
-    PHASE_STATE.ESPERA_INCENTIVO,
-    PHASE_STATE.ESPERA_2,
-]);
 
 const TIMEOUT_TOTAL_S = 60;
 const CONFETTI_COLORS = [
@@ -42,37 +23,33 @@ const CONFETTI_COLORS = [
     'hsl(42 98% 62%)',
 ];
 
+/* SVG inline de icones (voce substituira por arquivos em assets/icons/) */
+const ICON_STAR = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+const ICON_CLOCK = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>`;
+
 export class GameUI {
 
     /** @param {number} phaseNumber */
     constructor(phaseNumber) {
         this._phaseNumber = phaseNumber;
 
-        // Referências DOM (preenchidas em mount())
         this._root            = null;
         this._resultModal     = null;
         this._scoreEl         = null;
-        this._phaseEl         = null;
         this._livesTrackEl    = null;
         this._timerShellEl    = null;
         this._timerBarFillEl  = null;
         this._timerValueEl    = null;
-        this._statusMsgEl     = null;
         this._questionProgEl  = null;
         this._challengeCardEl = null;
-        this._enunciadoEl     = null;
         this._wordTilesEl     = null;
         this._zonasEl         = null;
         this._themeToggleBtn  = null;
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  CICLO DE VIDA
-    // ──────────────────────────────────────────────────────────
+    // ── CICLO DE VIDA ────────────────────────────────────────
 
-    /** Cria os elementos DOM e os insere no body. */
     mount() {
-        // Esconde a landing overlay se ainda estiver visível
         const overlay = document.querySelector('.content-overlay');
         if (overlay) overlay.style.display = 'none';
 
@@ -90,18 +67,14 @@ export class GameUI {
         this._cacheRefs();
     }
 
-    /** Remove todos os elementos DOM criados por mount(). */
     unmount() {
         this._root?.parentNode?.removeChild(this._root);
         this._resultModal?.parentNode?.removeChild(this._resultModal);
         this._themeToggleBtn?.parentNode?.removeChild(this._themeToggleBtn);
-        this._root = this._resultModal = null;
-        this._themeToggleBtn = null;
+        this._root = this._resultModal = this._themeToggleBtn = null;
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  BOTAO DE TOGGLE DE TEMA
-    // ──────────────────────────────────────────────────────────
+    // ── BOTAO DE TOGGLE DE TEMA ─────────────────────────────
 
     _mountThemeToggle() {
         const btn = document.createElement('button');
@@ -111,6 +84,7 @@ export class GameUI {
         const icon = document.createElement('img');
         icon.src = this._themeIconSrc();
         icon.alt = '';
+        icon.setAttribute('aria-hidden', 'true');
         btn.appendChild(icon);
 
         btn.addEventListener('click', () => {
@@ -124,7 +98,6 @@ export class GameUI {
         document.body.appendChild(btn);
         this._themeToggleBtn = btn;
 
-        // Atualiza ícone quando o tema muda externamente
         document.addEventListener(EVENT_NAME, () => {
             icon.src = this._themeIconSrc();
         });
@@ -132,38 +105,29 @@ export class GameUI {
 
     _themeIconSrc() {
         return ThemeManager.tema === 'diurno'
-            ? 'assets/icons/sun.svg'
-            : 'assets/icons/moon.svg';
+            ? 'assets/icons/moon.svg'
+            : 'assets/icons/sun.svg';
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  ATUALIZAÇÃO — chamada a cada frame
-    // ──────────────────────────────────────────────────────────
+    // ── ATUALIZACAO ──────────────────────────────────────────
 
     /**
-     * Atualiza todos os valores da HUD de uma só vez.
-     * @param {{ score: number, lives: number, questaoIndex: number,
-     *            totalQuestoes: number, state: string,
-     *            timerIncentivo: number, showTimer: boolean }} data
+     * Atualiza todos os valores da HUD de uma so vez.
      */
     update({ score, lives, questaoIndex, totalQuestoes, state, timerIncentivo, showTimer }) {
-        if (this._scoreEl)        this._scoreEl.textContent        = `${score} pts`;
-        if (this._phaseEl)        this._phaseEl.textContent        = `Fase ${this._phaseNumber}`;
-        if (this._livesTrackEl)   this._livesTrackEl.innerHTML     = this._livesHTML(lives);
+        if (this._scoreEl)        this._scoreEl.textContent = `${score}`;
+        if (this._livesTrackEl)   this._livesTrackEl.innerHTML = this._livesHTML(lives);
         if (this._questionProgEl) this._questionProgEl.textContent = `${Math.max(1, questaoIndex + 1)}/${totalQuestoes}`;
-        if (this._statusMsgEl)    this._statusMsgEl.textContent    = this._statusMsg(state);
         this._updateTimer(showTimer, timerIncentivo);
     }
 
-    /** Atualiza o card de desafio (enunciado + tiles da palavra). */
-    updateChallengeCard(enunciado, word) {
-        if (this._enunciadoEl)   this._enunciadoEl.textContent = enunciado ?? '';
-
+    /** Atualiza o card de desafio (word tiles apenas — enunciado removido). */
+    updateChallengeCard(enunciado, word, focusIndex = 0) {
         const w = String(word ?? '').trim();
         if (this._wordTilesEl) {
             if (w) {
                 this._wordTilesEl.innerHTML = w.split('').map((char, i) =>
-                    `<span class="word-tile${i === 0 ? ' word-tile-focus' : ''}">${char}</span>`
+                    `<span class="word-tile${i === focusIndex ? ' word-tile-focus' : ''}">${char}</span>`
                 ).join('');
                 this._wordTilesEl.style.display = 'flex';
             } else {
@@ -173,15 +137,12 @@ export class GameUI {
         }
 
         if (this._challengeCardEl) {
-            this._challengeCardEl.style.display = enunciado ? 'flex' : 'none';
+            this._challengeCardEl.style.display = w ? 'flex' : 'none';
         }
     }
 
     /**
-     * Renderiza os botões de zona de acordo com o estado atual.
-     * @param {import('./GameBridge.js').Alternativa[]} alternativas
-     * @param {string} state      - Estado atual da máquina
-     * @param {string} correctaId - id da alternativa correta (para highlight no FEEDBACK_FINAL)
+     * Renderiza os botoes de zona de acordo com o estado atual.
      */
     updateZones(alternativas, state, correctaId) {
         if (!this._zonasEl) return;
@@ -196,9 +157,13 @@ export class GameUI {
             ).join('');
         }
 
+        // Se os labels tem mais de 1 char, sao palavras — fonte menor
+        if (alternativas?.some(a => a.label.length > 1)) {
+            this._zonasEl.querySelectorAll('.zona-btn').forEach(b => b.classList.add('zona-btn-word'));
+        }
+
         this._zonasEl.style.display = 'flex';
 
-        // Destaca correta no estado de feedback final
         if (state === PHASE_STATE.FEEDBACK_FINAL && correctaId) {
             this._zonasEl.querySelectorAll('.zona-btn').forEach(btn => {
                 if (btn.dataset.zonaId === correctaId) btn.classList.add('zona-btn-correct');
@@ -211,37 +176,22 @@ export class GameUI {
         if (this._zonasEl) this._zonasEl.style.display = 'none';
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  MODAL DE RESULTADO
-    // ──────────────────────────────────────────────────────────
+    // ── MODAL DE RESULTADO — SIMPLIFICADO ──────────────────
 
-    /**
-     * Exibe o modal de resultado após uma parada.
-     *
-     * @param {boolean} isCorrect
-     * @param {{ correctLabel: string, selectedLabel: string,
-     *            selectedDistance: number,
-     *            alternativas: import('./GameBridge.js').Alternativa[],
-     *            zones: Array<{id,label,x,w,isCorrect}>,
-     *            playerAnchorX: number }} data
-     */
     showResultModal(isCorrect, data) {
         if (!this._resultModal) return;
 
         const q   = id => document.getElementById(id);
         const cls = isCorrect ? 'is-correct' : 'is-wrong';
 
-        // Classes de cor
         ['result-modal-bar', 'result-status-banner', 'result-status-icon',
-         'result-status-title', 'result-status-sub'].forEach(id => {
+         'result-status-title'].forEach(id => {
             const el = q(id);
             if (el) el.className = `${id} ${cls}`;
         });
 
-        // Textos
         this._setContent('result-status-icon',   isCorrect ? '✓' : '✕');
-        this._setContent('result-status-title',   isCorrect ? 'Acertou em cheio!' : 'Poxa, quase lá.');
-        this._setContent('result-status-sub',     isCorrect ? '+10 Pontos' : '-1 Vida');
+        this._setContent('result-status-title',   isCorrect ? 'Acertou!' : 'Quase!');
         this._setContent('result-correct-label',  data.correctLabel);
         this._setContent('result-selected-label', data.selectedLabel);
 
@@ -250,29 +200,12 @@ export class GameUI {
             : '0%';
         this._setContent('result-margin', marginPct);
 
-        // Grid de distâncias por alternativa
-        const grid = q('result-distances-grid');
-        if (grid) {
-            grid.innerHTML = (data.alternativas ?? []).map(alt => {
-                const zona  = (data.zones ?? []).find(z => z.id === alt.id);
-                const dist  = zona ? Math.abs(data.playerAnchorX - (zona.x + zona.w / 2)) : 0;
-                const pct   = (dist / Math.max(1, window.innerWidth) * 100).toFixed(1);
-                const isSel = alt.label === data.selectedLabel;
-                return `<div class="result-dist-chip${isSel ? ' is-selected' : ''}">
-                    <span class="result-dist-label">${alt.label}</span>
-                    <span class="result-dist-value">${pct}%</span>
-                </div>`;
-            }).join('');
-        }
-
-        // Botão CTA
         const btn = q('result-cta-btn');
         if (btn) {
-            btn.textContent = isCorrect ? 'Próxima Fase' : 'Tentar Novamente';
+            btn.textContent = isCorrect ? 'Continuar' : 'Tentar';
             btn.className   = `result-cta-btn ${cls}`;
         }
 
-        // Confetti
         const confettiEl = q('confetti-container');
         if (confettiEl) {
             confettiEl.innerHTML = '';
@@ -299,27 +232,20 @@ export class GameUI {
         this._resultModal?.classList.add('hidden');
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  PRIVADOS — templates HTML
-    // ──────────────────────────────────────────────────────────
+    // ── PRIVADOS — templates HTML ──────────────────────────
 
     _hudTemplate() {
         return `
         <div class="game-top-shell">
             <div class="game-header">
                 <div class="hud-pill hud-pill-score">
-                    <span class="hud-icon" aria-hidden="true">&#9733;</span>
-                    <span class="hud-value" id="score-value">0 pts</span>
-                </div>
-                <div class="hud-pill hud-pill-phase">
-                    <span class="hud-value" id="phase-value">Fase ${this._phaseNumber}</span>
-                </div>
-                <div class="hud-pill hud-pill-lives">
+                    <span class="hud-icon" aria-hidden="true">${ICON_STAR}</span>
+                    <span class="hud-value" id="score-value">0</span>
                     <div class="lives-track" id="lives-track">${this._livesHTML(3)}</div>
                 </div>
             </div>
             <div class="timer-shell" id="timer-shell">
-                <span class="timer-label">Tempo</span>
+                <span class="timer-icon" aria-hidden="true">${ICON_CLOCK}</span>
                 <div class="timer-bar-track">
                     <div class="timer-bar-fill" id="timer-bar-fill"></div>
                 </div>
@@ -328,67 +254,53 @@ export class GameUI {
         </div>
 
         <div class="game-challenge-card" id="challenge-card">
-            <p class="game-enunciado" id="enunciado-text"></p>
+            <span class="challenge-progress" id="question-progress">1/1</span>
             <div class="game-word-tiles" id="word-tiles"></div>
         </div>
 
-        <div class="game-zonas-html" id="zonas-html"></div>
-
-        <div class="game-statusbar">
-            <span class="status-copy" id="status-message">Espaço move e para o robô. Use as setas para trocar a direção.</span>
-            <span class="status-chip" id="question-progress">1/1</span>
-        </div>`;
+        <div class="game-zonas-html" id="zonas-html"></div>`;
     }
 
     _modalTemplate() {
         return `
         <div class="result-modal-card" id="result-modal-card">
             <div class="confetti-container" id="confetti-container"></div>
-            <div class="result-modal-bar"  id="result-modal-bar"></div>
+            <div class="result-modal-bar" id="result-modal-bar"></div>
             <div class="result-modal-body">
-                <p class="result-modal-title">Resultado da Parada</p>
                 <div class="result-status-banner" id="result-status-banner">
-                    <div class="result-status-icon"  id="result-status-icon"></div>
+                    <div class="result-status-icon" id="result-status-icon"></div>
                     <div class="result-status-title" id="result-status-title"></div>
-                    <div class="result-status-sub"   id="result-status-sub"></div>
                 </div>
                 <div class="result-info-block">
                     <div class="result-info-row">
-                        <span class="result-info-label">Resposta correta:</span>
+                        <span class="result-info-label">Correta:</span>
                         <span class="result-info-value" id="result-correct-label"></span>
                     </div>
                     <div class="result-info-row">
-                        <span class="result-info-label">Sua parada:</span>
+                        <span class="result-info-label">Sua:</span>
                         <span class="result-info-value" id="result-selected-label"></span>
                     </div>
                     <div class="result-info-row">
-                        <span class="result-info-label">Margem de erro:</span>
+                        <span class="result-info-label">Margem:</span>
                         <span class="result-info-value" id="result-margin"></span>
                     </div>
                 </div>
-                <p class="result-distances-title">Distâncias detalhadas:</p>
-                <div class="result-distances-grid" id="result-distances-grid"></div>
                 <button class="result-cta-btn" id="result-cta-btn"></button>
             </div>
         </div>`;
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  PRIVADOS — helpers
-    // ──────────────────────────────────────────────────────────
+    // ── PRIVADOS — helpers ──────────────────────────────────
 
     _cacheRefs() {
         const q = id => this._root.querySelector(`#${id}`);
         this._scoreEl         = q('score-value');
-        this._phaseEl         = q('phase-value');
         this._livesTrackEl    = q('lives-track');
         this._timerShellEl    = q('timer-shell');
         this._timerBarFillEl  = q('timer-bar-fill');
         this._timerValueEl    = q('timer-value');
-        this._statusMsgEl     = q('status-message');
         this._questionProgEl  = q('question-progress');
         this._challengeCardEl = q('challenge-card');
-        this._enunciadoEl     = q('enunciado-text');
         this._wordTilesEl     = q('word-tiles');
         this._zonasEl         = q('zonas-html');
     }
@@ -409,14 +321,10 @@ export class GameUI {
 
     _livesHTML(lives) {
         return Array.from({ length: 3 }, (_, i) =>
-            `<span class="life-chip${i < lives ? '' : ' is-lost'}" aria-hidden="true"></span>`
+            `<svg class="life-chip${i < lives ? '' : ' is-lost'}" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>`
         ).join('');
-    }
-
-    _statusMsg(state) {
-        if (STATUS_MSGS[state]) return STATUS_MSGS[state];
-        if (STATUS_ATIVOS.has(state)) return 'Espaço move e para o robô. Use as setas para trocar a direção.';
-        return 'Acompanhe o desafio e aguarde o próximo passo do jogo.';
     }
 
     _setContent(id, text) {
